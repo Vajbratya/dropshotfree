@@ -1168,6 +1168,60 @@ void main(){
   o = vec4(col, m);
 }`;
 
+/* MacBook base — keyboard deck + hinge + subtle key texture */
+const FS_MACBASE = `#version 300 es
+precision highp float; in vec2 v_uv; out vec4 o;
+uniform vec2 u_size; uniform float u_radius;
+uniform vec3 u_rim;
+float sdRound(vec2 uv, vec2 sz, float r){
+  vec2 p = (uv - 0.5) * sz;
+  vec2 q = abs(p) - (sz*0.5 - r);
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+void main(){
+  float d = sdRound(v_uv, u_size, u_radius);
+  float m = 1.0 - smoothstep(-1.0, 1.0, d);
+
+  // Hinge strip at very top (thin darker band)
+  float hinge = smoothstep(0.965, 0.985, v_uv.y) * (1.0 - smoothstep(0.985, 1.0, v_uv.y));
+  // Keyboard area: inset rounded rect with key grid
+  float keyboardTop = 0.18;
+  float keyboardBot = 0.92;
+  float inKb = smoothstep(0.06, 0.08, v_uv.x) * (1.0 - smoothstep(0.92, 0.94, v_uv.x))
+             * smoothstep(keyboardTop, keyboardTop+0.01, v_uv.y)
+             * (1.0 - smoothstep(keyboardBot-0.01, keyboardBot, v_uv.y));
+
+  // Key grid — 14 cols × 6 rows
+  vec2 kp = vec2((v_uv.x - 0.08) / 0.84, (v_uv.y - keyboardTop) / (keyboardBot - keyboardTop));
+  vec2 gridP = kp * vec2(14.0, 6.0);
+  vec2 gridF = fract(gridP);
+  vec2 gridD = abs(gridF - 0.5);
+  float keyMask = (1.0 - smoothstep(0.35, 0.42, max(gridD.x, gridD.y))) * inKb;
+
+  // Trackpad bottom center
+  float tpTop = 0.55, tpBot = 0.88;
+  float tp = smoothstep(0.28, 0.30, v_uv.x) * (1.0 - smoothstep(0.70, 0.72, v_uv.x))
+           * smoothstep(tpTop, tpTop+0.01, v_uv.y) * (1.0 - smoothstep(tpBot-0.01, tpBot, v_uv.y));
+
+  // Metallic gradient
+  float sheen = smoothstep(0.0, 1.0, v_uv.y);
+  vec3 base = u_rim * (0.78 + 0.2 * sheen);
+  // Darker keys
+  base = mix(base, vec3(0.02, 0.02, 0.025), keyMask * 0.85);
+  // Trackpad slightly darker rect
+  // Only darken OUTSIDE keyboard area
+  // Actually trackpad should only show in non-keyboard zone — skip for now
+
+  // Hinge darker band
+  base = mix(base, vec3(0.04, 0.04, 0.05), hinge * 0.9);
+
+  // Front edge darker lip
+  float lip = smoothstep(0.0, 0.015, v_uv.y) * (1.0 - smoothstep(0.015, 0.025, v_uv.y));
+  base -= vec3(lip * 0.15);
+
+  o = vec4(base, m);
+}`;
+
 /* Notch/island shader */
 const FS_NOTCH = `#version 300 es
 precision highp float; in vec2 v_uv; out vec4 o;
@@ -1313,6 +1367,7 @@ const progShadow = makeProg(VS_RECT, FS_SHADOW);
 const progContent= makeProg(VS_RECT, FS_CONTENT);
 const progBezel  = makeProg(VS_RECT, FS_BEZEL);
 const progNotch  = makeProg(VS_RECT, FS_NOTCH);
+const progMacBase= makeProg(VS_RECT, FS_MACBASE);
 const progPost   = makeProg(VS_FULL, FS_POST);
 
 /* Quad */
@@ -1666,6 +1721,28 @@ function render() {
   gl.uniform2f(gl.getUniformLocation(progContent, 'u_flip'), state.flipH ? -1 : 1, state.flipV ? -1 : 1);
   uTilt(progContent);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  /* MacBook base (keyboard deck) */
+  if (dev.id === 'macbook') {
+    gl.useProgram(progMacBase);
+    setAttribs(progMacBase);
+    const baseW = phoneW * 1.06;
+    const baseH = phoneH * 0.055;
+    // Position base BELOW screen accounting for rotation — put in local y=-phoneH-baseH
+    const c = Math.cos(rotZ), s = Math.sin(rotZ);
+    const localY = -phoneH - baseH;
+    const bx_ = cx + m.bx + (-s * localY);
+    const by_ = cy + m.by + ( c * localY);
+    const bSzPx = [baseW * W, baseH * H];
+    gl.uniform2f(gl.getUniformLocation(progMacBase, 'u_size'), bSzPx[0], bSzPx[1]);
+    gl.uniform1f(gl.getUniformLocation(progMacBase, 'u_radius'), Math.min(bSzPx[0], bSzPx[1]) * 0.06);
+    gl.uniform3f(gl.getUniformLocation(progMacBase, 'u_rim'), dev.rim[0], dev.rim[1], dev.rim[2]);
+    gl.uniform4f(gl.getUniformLocation(progMacBase, 'u_rect'), bx_, by_, baseW, baseH);
+    gl.uniform1f(gl.getUniformLocation(progMacBase, 'u_rot'), rotZ);
+    gl.uniform2f(gl.getUniformLocation(progMacBase, 'u_flip'), 1, 1);
+    uTilt(progMacBase);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
 
   /* Notch/island */
   if (dev.id !== 'none' && dev.notch !== 'none') {
