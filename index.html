@@ -66,7 +66,15 @@
     background-blend-mode: overlay;
     display: flex; align-items: center; justify-content: center;
   }
-  #canvasWrap { position: relative; box-shadow: 0 20px 80px rgba(0,0,0,.4); border-radius: 12px; overflow: hidden; }
+  #canvasWrap {
+    position: relative; box-shadow: 0 20px 80px rgba(0,0,0,.4); border-radius: 12px; overflow: hidden;
+    background-image:
+      linear-gradient(45deg, #2a2a2e 25%, transparent 25%, transparent 75%, #2a2a2e 75%),
+      linear-gradient(45deg, #2a2a2e 25%, transparent 25%, transparent 75%, #2a2a2e 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+    background-color: #1c1c1f;
+  }
   #canvas { display: block; }
   #overlayDrop {
     position: absolute; inset: 0;
@@ -254,11 +262,22 @@
             <option value="gradient">Linear Gradient</option>
             <option value="radial">Radial Gradient</option>
             <option value="solid">Solid Color</option>
-            <option value="mesh">Mesh Gradient</option>
+            <option value="mesh">Mesh Gradient (animated)</option>
             <option value="noise">Noise / Grainy</option>
+            <option value="paper">Paper Texture</option>
+            <option value="dots">Dot Grid</option>
+            <option value="lines">Line Grid</option>
+            <option value="waves">Waves (animated)</option>
+            <option value="plasma">Plasma (animated)</option>
+            <option value="voronoi">Voronoi Cells</option>
             <option value="blur">Blurred Content</option>
-            <option value="transparent">Transparent</option>
+            <option value="image">Upload Image</option>
+            <option value="transparent">None (Transparent)</option>
           </select>
+        </div>
+        <div class="slider"><label>BG Image</label>
+          <button id="bgImgBtn" style="flex:1;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:5px;cursor:pointer;font-size:11px;">Upload custom background</button>
+          <input type="file" id="bgImgInput" accept="image/*" hidden />
         </div>
         <div class="row2">
           <div class="slider"><label>Color A</label><input type="color" id="bgColorA" value="#1a1a2e"></div>
@@ -442,9 +461,13 @@ const FX_DEFS = [
     { k:'hue',    label:'Color Hue',min:0, max:360, val:230 },
   ]},
 ];
-const MOTION_DEF = { id:'hover', name:'Hover Motion', on:true, params:[
-  { k:'type', label:'Type', enum:['Float','Sway','Tilt','Orbit','Pulse','Spin','Wobble','Drift','Bounce','Heartbeat'], val:0 },
-  { k:'speed',label:'Speed', min:0, max:4, val:1.2 },
+const MOTION_DEF = { id:'hover', name:'Motion Preset', on:true, params:[
+  { k:'type', label:'Type', enum:[
+    'Showcase 360','Presentation','Parallax','Gentle Float','Breathing',
+    'Turntable Slow','Turntable Fast','Wobble 3D','Drift','Tilt Reveal',
+    'Ken Burns','Pendulum','Sway','Bounce','Figure 8'
+  ], val:1 },
+  { k:'speed',label:'Speed', min:0, max:4, val:0.8 },
   { k:'range',label:'Range', min:0, max:2, val:1.0 },
 ]};
 const POST_FX = [
@@ -526,7 +549,7 @@ const state = {
   scrRad: 0.10,
   fit: 'cover',
   zoom: 1,
-  bg: { mode:'gradient', colorA:'#1a1a2e', colorB:'#16213e', angle:135, grain:0.06 },
+  bg: { mode:'gradient', colorA:'#1a1a2e', colorB:'#16213e', angle:135, grain:0.06, img: null },
   shadow: FX_DEFS[0],
   motion: { ...MOTION_DEF, params: MOTION_DEF.params.map(p => ({ ...p })) },
   fx: POST_FX.map(d => ({ ...d, params: d.params.map(p => ({ ...p })) })),
@@ -534,6 +557,10 @@ const state = {
   imgIsVideo: false,
   recording: false,
   recDuration: 0,
+  tilt: { x: 0, y: 0 },
+  tiltTarget: { x: 0, y: 0 },
+  hoverTilt: { x: 0, y: 0 },
+  dragging: false,
 };
 
 /* -------- Helper: hex → [r,g,b] 0..1 -------- */
@@ -880,74 +907,147 @@ function makeProg(vs, fs) {
 
 const VS_RECT = `#version 300 es
 in vec2 a_pos; in vec2 a_uv; out vec2 v_uv;
-uniform vec4 u_rect;   // center + half-size (xy=center, zw=half-size)
+uniform vec4 u_rect;   // center + half-size
 uniform float u_rot;
-uniform vec2 u_flip;   // x, y: 1 or -1
+uniform vec2 u_flip;
+uniform vec2 u_tilt;   // pitch (x-axis), yaw (y-axis) in radians
+uniform vec2 u_canvas; // canvas width, height (px)
 void main(){
   v_uv = vec2((a_uv.x - 0.5) * u_flip.x + 0.5, (a_uv.y - 0.5) * u_flip.y + 0.5);
-  vec2 p = a_pos * u_rect.zw;
-  float c = cos(u_rot), s = sin(u_rot);
-  p = mat2(c, -s, s, c) * p;
-  p += u_rect.xy;
-  gl_Position = vec4(p, 0., 1.);
+  // Build 3D position in "device local" space (aspect-corrected so tilt looks natural)
+  float aspect = u_canvas.x / u_canvas.y;
+  vec3 p3 = vec3(a_pos.x * u_rect.z * aspect, a_pos.y * u_rect.w, 0.0);
+  // pitch (rotate around X)
+  float cp = cos(u_tilt.x), sp = sin(u_tilt.x);
+  p3 = vec3(p3.x, cp*p3.y - sp*p3.z, sp*p3.y + cp*p3.z);
+  // yaw (rotate around Y)
+  float cy = cos(u_tilt.y), sy = sin(u_tilt.y);
+  p3 = vec3(cy*p3.x + sy*p3.z, p3.y, -sy*p3.x + cy*p3.z);
+  // roll (around Z)
+  float cr = cos(u_rot), sr = sin(u_rot);
+  p3 = vec3(cr*p3.x - sr*p3.y, sr*p3.x + cr*p3.y, p3.z);
+  // perspective projection
+  float focal = 2.5;
+  float z = p3.z + focal;
+  vec2 proj = vec2(p3.x, p3.y) * (focal / z);
+  // restore aspect
+  proj.x /= aspect;
+  proj += u_rect.xy;
+  gl_Position = vec4(proj, 0., 1.);
 }`;
 const VS_FULL = `#version 300 es
 in vec2 a_pos; in vec2 a_uv; out vec2 v_uv;
 void main(){ v_uv = a_uv; gl_Position = vec4(a_pos, 0., 1.); }`;
 
-/* Background shader — multiple modes */
+/* Background shader — 13 modes */
 const FS_BG = `#version 300 es
 precision highp float; in vec2 v_uv; out vec4 o;
-uniform int u_mode; // 0 gradient, 1 radial, 2 solid, 3 mesh, 4 noise, 5 blur, 6 transparent
+uniform int u_mode;
 uniform vec3 u_cA; uniform vec3 u_cB;
 uniform float u_angle;
 uniform float u_grain;
 uniform float u_time;
-uniform sampler2D u_tex; // for blur mode
+uniform sampler2D u_contentTex;
+uniform sampler2D u_bgImg;
 uniform vec2 u_canvasSize;
 
 float hash21(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
-float noise(vec2 p){
+vec2  hash22(vec2 p){ p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3))); return fract(sin(p) * 43758.5453); }
+float vnoise(vec2 p){
   vec2 i = floor(p), f = fract(p);
-  float a = hash21(i);
-  float b = hash21(i + vec2(1.0, 0.0));
-  float c = hash21(i + vec2(0.0, 1.0));
-  float d = hash21(i + vec2(1.0, 1.0));
+  float a = hash21(i), b = hash21(i + vec2(1.0, 0.0)),
+        c = hash21(i + vec2(0.0, 1.0)), d = hash21(i + vec2(1.0, 1.0));
   vec2 u = f*f*(3.0-2.0*f);
   return mix(a, b, u.x) + (c - a)*u.y*(1.0 - u.x) + (d - b)*u.x*u.y;
+}
+float fbm(vec2 p){
+  float v = 0.0, a = 0.5;
+  for (int i=0; i<5; i++) { v += a * vnoise(p); p *= 2.0; a *= 0.5; }
+  return v;
 }
 
 void main(){
   vec3 col;
-  if (u_mode == 0) { // linear gradient
+  float aspect = u_canvasSize.x / u_canvasSize.y;
+  if (u_mode == 0) {          // linear gradient
     float a = radians(u_angle);
     vec2 dir = vec2(cos(a), sin(a));
     float t = dot(v_uv - 0.5, dir) + 0.5;
     col = mix(u_cA, u_cB, clamp(t, 0.0, 1.0));
-  } else if (u_mode == 1) { // radial
+  } else if (u_mode == 1) {   // radial
     float d = distance(v_uv, vec2(0.5));
     col = mix(u_cA, u_cB, smoothstep(0.0, 0.9, d));
-  } else if (u_mode == 2) { // solid
+  } else if (u_mode == 2) {   // solid
     col = u_cA;
-  } else if (u_mode == 3) { // mesh
-    float n1 = noise(v_uv * 3.0 + u_time * 0.05);
-    float n2 = noise(v_uv * 2.0 - u_time * 0.03);
-    col = mix(u_cA, u_cB, n1);
-    col = mix(col, vec3(dot(col, vec3(0.33)))*1.2, n2 * 0.3);
-  } else if (u_mode == 4) { // noise / grainy
-    float n = noise(v_uv * 80.0);
+  } else if (u_mode == 3) {   // mesh (animated blobs)
+    vec2 p = v_uv * 3.0;
+    float n1 = fbm(p + u_time * 0.08);
+    float n2 = fbm(p * 1.4 - u_time * 0.06);
+    col = mix(u_cA, u_cB, smoothstep(0.2, 0.8, n1));
+    col = mix(col, u_cB * 1.2, n2 * 0.35);
+  } else if (u_mode == 4) {   // noise grainy
+    float n = vnoise(v_uv * 80.0);
     col = mix(u_cA, u_cB, n);
-  } else if (u_mode == 5) { // blurred content approximation
+  } else if (u_mode == 5) {   // paper texture
+    vec2 p = v_uv * vec2(aspect, 1.0) * 300.0;
+    float fiber = fbm(p * 0.4) * 0.5 + fbm(p * 1.3) * 0.3 + hash21(p) * 0.2;
+    float speck = smoothstep(0.92, 1.0, hash21(floor(p * 2.0))) * 0.3;
+    vec3 base = mix(u_cA, u_cB, fbm(v_uv * 2.5));
+    col = base * (0.8 + fiber * 0.25) - speck * 0.15;
+    // subtle crease lines
+    float crease = sin(v_uv.y * 40.0 + fbm(v_uv * 6.0) * 10.0) * 0.02;
+    col += crease;
+  } else if (u_mode == 6) {   // dot grid (paper design style)
+    vec2 p = v_uv * vec2(aspect, 1.0) * 40.0;
+    vec2 g = fract(p) - 0.5;
+    float d = length(g);
+    float dot = smoothstep(0.12, 0.08, d);
+    col = mix(u_cA, u_cB, v_uv.y);
+    col = mix(col, u_cB * 1.5, dot * 0.35);
+  } else if (u_mode == 7) {   // line grid
+    vec2 p = v_uv * vec2(aspect, 1.0) * 30.0;
+    vec2 g = abs(fract(p) - 0.5);
+    float line = smoothstep(0.49, 0.45, min(g.x, g.y));
+    col = mix(u_cA, u_cB, v_uv.y);
+    col = mix(col, col * 0.7, line * 0.4);
+  } else if (u_mode == 8) {   // waves
+    vec2 p = v_uv * vec2(aspect, 1.0);
+    float w = sin(p.x * 10.0 + u_time) * 0.5 + 0.5;
+    w *= sin(p.y * 6.0 + u_time * 0.7) * 0.5 + 0.5;
+    w += fbm(p * 3.0 + u_time * 0.1) * 0.3;
+    col = mix(u_cA, u_cB, w);
+  } else if (u_mode == 9) {   // plasma
+    vec2 p = v_uv * 4.0 - 2.0;
+    float t = u_time * 0.5;
+    float v = sin(p.x * 2.0 + t) + sin(p.y * 2.0 + t * 1.2)
+            + sin((p.x + p.y) * 1.5 + t * 0.8)
+            + sin(length(p) * 4.0 - t * 1.5);
+    v *= 0.25;
+    col = mix(u_cA, u_cB, v * 0.5 + 0.5);
+  } else if (u_mode == 10) {  // voronoi cells
+    vec2 p = v_uv * vec2(aspect, 1.0) * 6.0;
+    vec2 i = floor(p), f = fract(p);
+    float minD = 1.0;
+    for (int y=-1; y<=1; y++) for (int x=-1; x<=1; x++) {
+      vec2 n = vec2(float(x), float(y));
+      vec2 o2 = hash22(i + n);
+      o2 = 0.5 + 0.5 * sin(u_time * 0.3 + 6.2831 * o2);
+      float d = length(n + o2 - f);
+      minD = min(minD, d);
+    }
+    col = mix(u_cA, u_cB, minD);
+  } else if (u_mode == 11) {  // blurred content
     vec3 sum = vec3(0.0); float w = 0.0;
     for (int i=-4; i<=4; i++) for (int j=-4; j<=4; j++) {
-      vec2 off = vec2(float(i), float(j)) * 0.01;
-      sum += texture(u_tex, v_uv + off).rgb; w += 1.0;
+      vec2 off = vec2(float(i), float(j)) * 0.012;
+      sum += texture(u_contentTex, v_uv + off).rgb; w += 1.0;
     }
     col = sum / w * 0.7;
+  } else if (u_mode == 12) {  // image
+    col = texture(u_bgImg, v_uv).rgb;
   } else {
     discard;
   }
-  // grain
   float g = (hash21(v_uv * u_canvasSize + u_time) - 0.5) * u_grain;
   col += g;
   o = vec4(col, 1.0);
@@ -1245,6 +1345,29 @@ function makeFBO(w, h) {
 }
 let sceneFBO = makeFBO(canvas.width, canvas.height);
 
+/* Background image texture */
+const bgImgTex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, bgImgTex);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,255,0,0,0,255,0,0,0,255,0,0,0,255]));
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+function uploadBgImage(img){
+  gl.bindTexture(gl.TEXTURE_2D, bgImgTex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+}
+
+/* BG image upload handler */
+document.getElementById('bgImgBtn').addEventListener('click', () => document.getElementById('bgImgInput').click());
+document.getElementById('bgImgInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => { state.bg.img = img; uploadBgImage(img); state.bg.mode = 'image'; document.getElementById('bgModeSel').value = 'image'; toast('BG image loaded'); };
+  img.src = URL.createObjectURL(f);
+});
+
 /* Content texture */
 const contentTex = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_2D, contentTex);
@@ -1277,28 +1400,76 @@ const startTime = performance.now();
 
 function computeMotion(t) {
   const m = state.motion;
-  if (!m.on) return { bx:0, by:0, rz:0, sm:1 };
+  if (!m.on) return { bx:0, by:0, rz:0, sm:1, tx:0, ty:0 };
   const spd = motionParam('speed'), rng = motionParam('range');
   const type = Math.round(motionParam('type'));
   const ph = t * spd;
-  let bx=0, by=0, rz=0, sm=1;
+  let bx=0, by=0, rz=0, sm=1, tx=0, ty=0;
   switch(type) {
-    case 0: by = Math.sin(ph)*0.04*rng; bx = Math.cos(ph*0.7)*0.016*rng; break; // Float
-    case 1: bx = Math.sin(ph)*0.05*rng; rz = Math.sin(ph)*0.08*rng; break;       // Sway
-    case 2: rz = Math.sin(ph)*0.18*rng; by = Math.cos(ph*2)*0.005*rng; break;    // Tilt
-    case 3: bx = Math.cos(ph)*0.05*rng; by = Math.sin(ph)*0.05*rng; rz = Math.sin(ph)*0.04*rng; break; // Orbit
-    case 4: sm = 1 + Math.sin(ph)*0.06*rng; break; // Pulse
-    case 5: rz = ph * 0.3 * rng; break; // Spin
-    case 6: rz = Math.sin(ph*1.3)*0.12*rng; by = Math.cos(ph*1.6)*0.025*rng; bx = Math.sin(ph*0.9)*0.025*rng; sm = 1 + Math.sin(ph*2)*0.02*rng; break; // Wobble
-    case 7: bx = Math.sin(ph*0.3)*0.12*rng; by = Math.sin(ph*0.5)*0.03*rng; break; // Drift
-    case 8: by = Math.abs(Math.sin(ph))*0.08*rng - 0.04*rng; break; // Bounce
-    case 9: { // Heartbeat
-      const k = Math.pow(Math.sin(ph) * 0.5 + 0.5, 8);
-      sm = 1 + k * 0.1 * rng;
+    case 0: // Showcase 360 — full Y rotation, subtle bob
+      ty = ph * 0.6;
+      by = Math.sin(ph*2) * 0.01 * rng;
       break;
-    }
+    case 1: // Presentation — gentle tilt oscillation w/ hover
+      ty = Math.sin(ph * 0.6) * 0.35 * rng;
+      tx = Math.sin(ph * 0.4 + 1.0) * 0.08 * rng;
+      by = Math.sin(ph * 0.5) * 0.015 * rng;
+      break;
+    case 2: // Parallax — figure 8 tilt
+      ty = Math.sin(ph * 0.5) * 0.2 * rng;
+      tx = Math.sin(ph * 1.0) * 0.1 * rng;
+      break;
+    case 3: // Gentle Float
+      by = Math.sin(ph) * 0.03 * rng;
+      tx = Math.sin(ph * 0.7) * 0.04 * rng;
+      ty = Math.cos(ph * 0.9) * 0.04 * rng;
+      break;
+    case 4: // Breathing — slow scale pulse w micro tilt
+      sm = 1 + Math.sin(ph * 0.8) * 0.04 * rng;
+      tx = Math.sin(ph * 0.4) * 0.03 * rng;
+      break;
+    case 5: // Turntable Slow — slow Y spin
+      ty = ph * 0.25;
+      break;
+    case 6: // Turntable Fast
+      ty = ph * 1.0;
+      break;
+    case 7: // Wobble 3D
+      tx = Math.sin(ph * 1.3) * 0.2 * rng;
+      ty = Math.cos(ph * 1.6) * 0.2 * rng;
+      rz = Math.sin(ph * 0.9) * 0.05 * rng;
+      break;
+    case 8: // Drift — slow lateral with tilt following
+      bx = Math.sin(ph * 0.25) * 0.1 * rng;
+      ty = Math.sin(ph * 0.25 + Math.PI / 2) * 0.12 * rng;
+      break;
+    case 9: // Tilt Reveal — pitch swing
+      tx = Math.sin(ph * 0.7) * 0.3 * rng;
+      break;
+    case 10: // Ken Burns — slow zoom + lateral drift
+      sm = 1 + (Math.sin(ph * 0.15) * 0.5 + 0.5) * 0.12 * rng;
+      bx = Math.sin(ph * 0.18) * 0.06 * rng;
+      by = Math.cos(ph * 0.2) * 0.04 * rng;
+      break;
+    case 11: // Pendulum — rz swing
+      rz = Math.sin(ph * 0.8) * 0.25 * rng;
+      by = (1 - Math.cos(ph * 1.6)) * -0.01 * rng;
+      break;
+    case 12: // Sway — yaw oscillation
+      ty = Math.sin(ph) * 0.3 * rng;
+      bx = Math.sin(ph) * 0.01 * rng;
+      break;
+    case 13: // Bounce
+      by = Math.abs(Math.sin(ph)) * 0.08 * rng - 0.04 * rng;
+      sm = 1 + Math.abs(Math.cos(ph)) * 0.02 * rng;
+      break;
+    case 14: // Figure 8 — lissajous bx/by
+      bx = Math.sin(ph) * 0.06 * rng;
+      by = Math.sin(ph * 2) * 0.04 * rng;
+      ty = Math.cos(ph) * 0.08 * rng;
+      break;
   }
-  return { bx, by, rz, sm };
+  return { bx, by, rz, sm, tx, ty };
 }
 
 function aspectToRatio(a) {
@@ -1322,6 +1493,16 @@ function render() {
   const W = canvas.width, H = canvas.height;
   if (sceneFBO.w !== W || sceneFBO.h !== H) sceneFBO = makeFBO(W, H);
 
+  // Spring tilt toward target + hover (spring when not dragging)
+  const springK = 0.15;
+  state.tilt.x += (state.tiltTarget.x - state.tilt.x) * springK;
+  state.tilt.y += (state.tiltTarget.y - state.tilt.y) * springK;
+  if (!state.dragging) {
+    // Decay target toward zero slowly
+    state.tiltTarget.x *= 0.985;
+    state.tiltTarget.y *= 0.985;
+  }
+
   /* ---- STEP 1: render scene to sceneFBO ---- */
   gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFBO.fb);
   gl.viewport(0, 0, W, H);
@@ -1334,7 +1515,7 @@ function render() {
   if (state.bg.mode !== 'transparent') {
     gl.useProgram(progBg);
     setAttribs(progBg);
-    const modeMap = { gradient:0, radial:1, solid:2, mesh:3, noise:4, blur:5 };
+    const modeMap = { gradient:0, radial:1, solid:2, mesh:3, noise:4, paper:5, dots:6, lines:7, waves:8, plasma:9, voronoi:10, blur:11, image:12 };
     gl.uniform1i(gl.getUniformLocation(progBg, 'u_mode'), modeMap[state.bg.mode] ?? 0);
     const ca = hexToRgb(state.bg.colorA), cb = hexToRgb(state.bg.colorB);
     gl.uniform3f(gl.getUniformLocation(progBg, 'u_cA'), ca[0], ca[1], ca[2]);
@@ -1345,8 +1526,12 @@ function render() {
     gl.uniform2f(gl.getUniformLocation(progBg, 'u_canvasSize'), W, H);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, contentTex);
-    gl.uniform1i(gl.getUniformLocation(progBg, 'u_tex'), 0);
+    gl.uniform1i(gl.getUniformLocation(progBg, 'u_contentTex'), 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, bgImgTex);
+    gl.uniform1i(gl.getUniformLocation(progBg, 'u_bgImg'), 1);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.activeTexture(gl.TEXTURE0);
   }
 
   const dev = getDevice();
@@ -1356,20 +1541,28 @@ function render() {
   const padFactor = 1 - state.padding * 2;
   const userScale = state.scale * m.sm * padFactor;
 
-  // Phone size in clip space
-  const phAspect = dev.aspect;
+  // Phone size in clip space — fit to whichever dimension is limited
   const canvasAspect = W / H;
-  let phoneH = userScale;
-  let phoneW = userScale * phAspect * (H / W);
-  // If landscape device (macbook, ipad landscape) flip dims
-  if (dev.aspect > 1) {
-    phoneW = userScale * (H / W);
-    phoneH = userScale / dev.aspect;
+  let phoneW, phoneH;
+  if (dev.aspect > canvasAspect) {
+    // device wider than canvas — width-limited
+    phoneW = userScale;
+    phoneH = userScale * (W / H) / dev.aspect;
+  } else {
+    // height-limited
+    phoneH = userScale;
+    phoneW = userScale * dev.aspect * (H / W);
   }
 
   const cx = state.posX * 2;
   const cy = state.posY * 2;
   const rotZ = m.rz + state.rot * Math.PI / 180;
+  const tiltX = state.tilt.x + m.tx + (state.dragging ? 0 : state.hoverTilt.x);
+  const tiltY = state.tilt.y + m.ty + (state.dragging ? 0 : state.hoverTilt.y);
+  function uTilt(prog) {
+    gl.uniform2f(gl.getUniformLocation(prog, 'u_tilt'), tiltX, tiltY);
+    gl.uniform2f(gl.getUniformLocation(prog, 'u_canvas'), W, H);
+  }
 
   /* Shadow (behind) */
   if (state.shadow.on) {
@@ -1396,6 +1589,8 @@ function render() {
       gl.uniform4f(gl.getUniformLocation(progShadow, 'u_rect'), shX, shY, shW, shH);
       gl.uniform1f(gl.getUniformLocation(progShadow, 'u_rot'), 0);
       gl.uniform2f(gl.getUniformLocation(progShadow, 'u_flip'), 1, style === 4 ? -1 : 1);
+      gl.uniform2f(gl.getUniformLocation(progShadow, 'u_tilt'), 0, 0);
+      gl.uniform2f(gl.getUniformLocation(progShadow, 'u_canvas'), W, H);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
   }
@@ -1414,6 +1609,7 @@ function render() {
     gl.uniform4f(gl.getUniformLocation(progBezel, 'u_rect'), cx + m.bx, cy + m.by, bw, bh);
     gl.uniform1f(gl.getUniformLocation(progBezel, 'u_rot'), rotZ);
     gl.uniform2f(gl.getUniformLocation(progBezel, 'u_flip'), 1, 1);
+    uTilt(progBezel);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 
@@ -1468,6 +1664,7 @@ function render() {
   gl.uniform4f(gl.getUniformLocation(progContent, 'u_rect'), cx + m.bx, cy + m.by, phoneW, phoneH);
   gl.uniform1f(gl.getUniformLocation(progContent, 'u_rot'), rotZ);
   gl.uniform2f(gl.getUniformLocation(progContent, 'u_flip'), state.flipH ? -1 : 1, state.flipV ? -1 : 1);
+  uTilt(progContent);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 
   /* Notch/island */
@@ -1497,6 +1694,7 @@ function render() {
     gl.uniform4f(gl.getUniformLocation(progNotch, 'u_rect'), nx, ny, nW, nH);
     gl.uniform1f(gl.getUniformLocation(progNotch, 'u_rot'), rotZ);
     gl.uniform2f(gl.getUniformLocation(progNotch, 'u_flip'), 1, 1);
+    uTilt(progNotch);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 
@@ -1556,6 +1754,80 @@ function hslToRgb(h, s, l) {
 window.addEventListener('resize', fitCanvas);
 fitCanvas();
 requestAnimationFrame(render);
+
+/* =========================================================================
+   Interactive drag — move, rotate (shift), scale (wheel)
+   ========================================================================= */
+(function attachDrag() {
+  let startX = 0, startY = 0;
+  let startPosX = 0, startPosY = 0, startRot = 0, startTiltX = 0, startTiltY = 0;
+  let mode = 'tilt';
+
+  canvas.style.cursor = 'grab';
+
+  canvas.addEventListener('mousedown', e => {
+    state.dragging = true;
+    startX = e.clientX; startY = e.clientY;
+    startPosX = state.posX; startPosY = state.posY; startRot = state.rot;
+    startTiltX = state.tiltTarget.x; startTiltY = state.tiltTarget.y;
+    // shift = Z rotate, alt/option = move, default = 3D tilt
+    if (e.shiftKey) mode = 'roll';
+    else if (e.altKey || e.metaKey) mode = 'move';
+    else mode = 'tilt';
+    canvas.style.cursor = mode === 'tilt' ? 'ew-resize' : mode === 'roll' ? 'alias' : 'grabbing';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    if (state.dragging) {
+      const dx = (e.clientX - startX) / rect.width;
+      const dy = (e.clientY - startY) / rect.height;
+      if (mode === 'roll') {
+        state.rot = Math.max(-90, Math.min(90, startRot + dx * 180));
+        document.getElementById('rotR').value = state.rot;
+        document.getElementById('rotV').textContent = state.rot.toFixed(1);
+      } else if (mode === 'move') {
+        state.posX = Math.max(-0.5, Math.min(0.5, startPosX + dx));
+        state.posY = Math.max(-0.5, Math.min(0.5, startPosY - dy));
+        document.getElementById('posXR').value = state.posX;
+        document.getElementById('posXV').textContent = state.posX.toFixed(2);
+        document.getElementById('posYR').value = state.posY;
+        document.getElementById('posYV').textContent = state.posY.toFixed(2);
+      } else { // tilt 3D
+        state.tiltTarget.y = startTiltY + dx * 1.5;  // yaw
+        state.tiltTarget.x = startTiltX - dy * 1.5;  // pitch
+      }
+    } else {
+      // Hover tilt — subtle auto follow cursor when mouse over stage
+      const mx = (e.clientX - rect.left) / rect.width - 0.5;
+      const my = (e.clientY - rect.top) / rect.height - 0.5;
+      state.hoverTilt.y = mx * 0.15;
+      state.hoverTilt.x = -my * 0.12;
+    }
+  });
+  window.addEventListener('mouseup', () => {
+    state.dragging = false;
+    canvas.style.cursor = 'grab';
+  });
+  stage.addEventListener('mouseleave', () => {
+    state.hoverTilt.x = 0; state.hoverTilt.y = 0;
+  });
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const delta = -e.deltaY * 0.001;
+    state.scale = Math.max(0.2, Math.min(1.3, state.scale + delta));
+    document.getElementById('scaleR').value = state.scale;
+    document.getElementById('scaleV').textContent = state.scale.toFixed(2);
+  }, { passive: false });
+  canvas.addEventListener('dblclick', () => {
+    state.posX = 0; state.posY = 0; state.rot = 0;
+    state.tiltTarget.x = 0; state.tiltTarget.y = 0;
+    document.getElementById('posXR').value = 0; document.getElementById('posXV').textContent = '0.00';
+    document.getElementById('posYR').value = 0; document.getElementById('posYV').textContent = '0.00';
+    document.getElementById('rotR').value = 0;  document.getElementById('rotV').textContent = '0.0';
+  });
+})();
 
 /* =========================================================================
    Recording + Snapshot
