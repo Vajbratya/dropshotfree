@@ -1,0 +1,1690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Dropshot Free — Device Mockups & Screen Recordings</title>
+<style>
+  :root {
+    --bg: #0f0f10;
+    --stage: #1a1a1c;
+    --panel: #1e1e20;
+    --panel2: #27272a;
+    --panel3: #2e2e31;
+    --border: #35353a;
+    --text: #e8e8ea;
+    --muted: #8a8a8f;
+    --accent: #0a84ff;
+    --accent2: #5ac8fa;
+    --red: #ff453a;
+    --green: #32d74b;
+    --yellow: #ffd60a;
+    --purple: #bf5af2;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font: 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+  #app { display: grid; grid-template-columns: 260px 1fr 340px; height: 100vh; }
+
+  /* Left rail */
+  #rail {
+    background: var(--panel); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #rail .head { padding: 14px 16px; border-bottom: 1px solid var(--border); display:flex; align-items:center; gap:8px; }
+  #rail .head .logo {
+    width:24px; height:24px; border-radius:6px;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; color:#fff;
+  }
+  #rail .head .title { font-weight: 700; font-size: 14px; letter-spacing: -.01em; }
+  #rail .head .subtitle { font-size:10px; color:var(--muted); margin-top:-2px; }
+  #rail .scroll { flex:1; overflow-y:auto; padding: 10px; }
+  .railSec { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 14px 6px 6px; }
+  .preset {
+    display:flex; align-items:center; gap:10px;
+    background: var(--panel2); border: 1px solid var(--border); border-radius:10px;
+    padding: 8px 10px; margin-bottom: 6px; cursor: pointer; transition: .12s;
+  }
+  .preset:hover { background: var(--panel3); border-color: #444; }
+  .preset.active { border-color: var(--accent); background: rgba(10,132,255,.08); }
+  .preset .swatch { width: 32px; height: 42px; border-radius: 6px; flex-shrink: 0; }
+  .preset .pName { font-weight: 600; font-size: 12px; }
+  .preset .pDesc { font-size: 10px; color: var(--muted); }
+
+  /* Stage */
+  #stage {
+    position: relative; overflow: hidden;
+    background:
+      linear-gradient(var(--stage),var(--stage)),
+      repeating-linear-gradient(45deg, rgba(255,255,255,.02) 0 10px, transparent 10px 20px);
+    background-blend-mode: overlay;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #canvasWrap { position: relative; box-shadow: 0 20px 80px rgba(0,0,0,.4); border-radius: 12px; overflow: hidden; }
+  #canvas { display: block; }
+  #overlayDrop {
+    position: absolute; inset: 0;
+    border: 2px dashed transparent;
+    pointer-events: none;
+    transition: border-color .15s, background .15s;
+  }
+  #overlayDrop.drag { border-color: var(--accent); background: rgba(10,132,255,.1); }
+  #recDot {
+    position: absolute; top: 14px; right: 14px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #555;
+  }
+  #recDot.live { background: var(--red); box-shadow: 0 0 0 4px rgba(255,69,58,.25); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+  #toast {
+    position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
+    background:rgba(0,0,0,.8); padding:8px 14px; border-radius:8px;
+    color:#fff; font-size:12px; opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  #toast.show { opacity:1; }
+  .hint { position: absolute; bottom: 20px; left: 20px; color: var(--muted); font-size: 11px; }
+  #recTime {
+    position:absolute; top:14px; left:14px; background:rgba(255,69,58,.9); color:#fff;
+    font-size:11px; font-weight:700; padding:3px 8px; border-radius:4px; display:none;
+    font-variant-numeric:tabular-nums;
+  }
+  #recTime.show { display:block; }
+
+  /* Right panel */
+  #panel { background: var(--panel); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .tabs { display:flex; gap:4px; padding:10px 14px; border-bottom: 1px solid var(--border); }
+  .tab { flex:1; padding:8px; text-align:center; border-radius:6px; cursor:pointer; font-weight:600; color:var(--muted); font-size:11px; letter-spacing:.04em; }
+  .tab.active { background: var(--panel2); color: var(--text); }
+  .toolbar { padding: 10px 14px; display: flex; gap: 6px; border-bottom: 1px solid var(--border); flex-wrap:wrap; }
+  .toolbar button { background: var(--panel2); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; cursor:pointer; font-size:11px; font-weight:500; }
+  .toolbar button:hover { background: var(--panel3); }
+  .toolbar button.accent { background: var(--accent); border-color: var(--accent); color:#fff; }
+  #panelScroll { flex:1; overflow-y:auto; padding:14px; }
+  .section { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 16px 0 8px; display:flex; align-items:center; justify-content:space-between; }
+  .section button { background:none; border:none; color:var(--muted); cursor:pointer; font-size:10px; }
+  .section button:hover { color: var(--text); }
+
+  .fx { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; overflow: hidden; }
+  .fx.on { border-color: var(--accent); background: rgba(10,132,255,.05); }
+  .fxHead { display: flex; align-items: center; gap: 8px; padding: 9px 11px; cursor: pointer; user-select: none; }
+  .fxHead .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .fx.on .fxHead .dot { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .fxHead .name { flex: 1; font-weight: 500; font-size: 12px; }
+  .fxHead .chev { color: var(--muted); font-size: 10px; transition: transform .2s; }
+  .fx.on .fxHead .chev { transform: rotate(90deg); }
+  .fxBody { padding: 0 11px 10px; display: none; }
+  .fx.on .fxBody { display: block; }
+
+  .slider { display:flex; align-items:center; gap:8px; margin:6px 0; font-size:11px; color:var(--muted); }
+  .slider label { width: 70px; flex-shrink: 0; }
+  .slider input[type=range] { flex:1; accent-color: var(--accent); min-width:0; }
+  .slider .val { width: 40px; text-align:right; color:var(--text); font-variant-numeric: tabular-nums; font-size:10px; }
+  .slider select, .slider input[type=color] {
+    flex:1; background:var(--panel); border:1px solid var(--border); color:var(--text); padding:4px 6px; border-radius:5px; font-size:11px; min-width:0;
+  }
+  .slider input[type=color] { padding:0; height:24px; cursor:pointer; }
+
+  .row2 { display:grid; grid-template-columns: 1fr 1fr; gap:6px; }
+  .chipRow { display:flex; gap:6px; flex-wrap:wrap; margin:4px 0; }
+  .chip { background: var(--panel2); border:1px solid var(--border); padding:5px 9px; border-radius:14px; font-size:11px; cursor:pointer; color:var(--muted); }
+  .chip.active { background: var(--accent); border-color:var(--accent); color:#fff; }
+  .chip:hover:not(.active) { border-color: #555; color: var(--text); }
+
+  .exportGrid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:10px; }
+  .exportGrid label { display:flex; flex-direction:column; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; gap:4px; }
+  .exportGrid select, .exportGrid input { background: var(--panel2); border:1px solid var(--border); color:var(--text); padding:6px; border-radius:6px; font-size:12px; }
+
+  .ctaRow { display:flex; gap:8px; padding: 0 14px 14px; }
+  #recBtn, #snapBtn {
+    flex:1; padding:12px; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  #recBtn { background: var(--accent); color:#fff; }
+  #recBtn.recording { background: var(--red); }
+  #snapBtn { background: var(--panel2); color:var(--text); border:1px solid var(--border); }
+  #snapBtn:hover { background: var(--panel3); }
+
+  /* kbd */
+  .kbd {
+    background: var(--panel3); border: 1px solid var(--border);
+    padding: 1px 5px; border-radius: 4px; font-size: 10px; font-family: 'SF Mono', monospace;
+  }
+
+  /* shortcuts modal */
+  #shModal {
+    position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
+    align-items:center; justify-content:center; z-index:100;
+  }
+  #shModal.show { display:flex; }
+  #shModal .box {
+    background: var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding: 20px 24px; min-width: 360px; max-width: 440px;
+  }
+  #shModal h3 { margin:0 0 14px; font-size:15px; }
+  #shModal table { width:100%; border-collapse:collapse; }
+  #shModal td { padding: 5px 0; font-size:12px; color: var(--text); }
+  #shModal td:last-child { text-align:right; }
+
+  /* scrollbars */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #3a3a3e; border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- LEFT RAIL: presets + device picker -->
+  <div id="rail">
+    <div class="head">
+      <div class="logo">D</div>
+      <div>
+        <div class="title">Dropshot Free</div>
+        <div class="subtitle">Mockups & Recordings</div>
+      </div>
+    </div>
+    <div class="scroll">
+      <div class="railSec">Devices</div>
+      <div id="deviceList"></div>
+
+      <div class="railSec">Background Presets</div>
+      <div id="bgPresets"></div>
+
+      <div class="railSec" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Scene Presets</span>
+      </div>
+      <div id="scenePresets"></div>
+    </div>
+  </div>
+
+  <!-- STAGE -->
+  <div id="stage">
+    <div id="canvasWrap">
+      <canvas id="canvas" width="900" height="1600"></canvas>
+      <div id="overlayDrop"></div>
+    </div>
+    <div id="recDot"></div>
+    <div id="recTime">● 0.0s</div>
+    <div class="hint">Drop image/video, paste, or press <span class="kbd">?</span> for shortcuts</div>
+    <div id="toast"></div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="panel">
+    <div class="tabs">
+      <div class="tab active" data-tab="design">DESIGN</div>
+      <div class="tab" data-tab="effects">EFFECTS</div>
+      <div class="tab" data-tab="export">EXPORT</div>
+    </div>
+    <div class="toolbar">
+      <button id="loadImgBtn">📁 Media</button>
+      <button id="liveBtn">🔴 Live</button>
+      <button id="pasteBtn">📋 Paste</button>
+      <button id="resetBtn">↺</button>
+      <button id="helpBtn">?</button>
+      <input type="file" id="fileInput" accept="image/*,video/*" hidden />
+    </div>
+
+    <div id="panelScroll">
+      <!-- DESIGN TAB -->
+      <div class="tabBody" data-body="design">
+        <div class="section">Canvas</div>
+        <div class="slider"><label>Aspect</label>
+          <select id="aspectSel">
+            <option value="9:16" selected>9:16 (Portrait)</option>
+            <option value="16:9">16:9 (Landscape)</option>
+            <option value="1:1">1:1 (Square)</option>
+            <option value="4:5">4:5 (Instagram)</option>
+            <option value="3:4">3:4</option>
+            <option value="21:9">21:9 (Cinematic)</option>
+          </select>
+        </div>
+        <div class="slider"><label>Padding</label><input type="range" id="paddingR" min="0" max="0.4" step="0.005" value="0.08"><span class="val" id="paddingV">0.08</span></div>
+
+        <div class="section">Background</div>
+        <div class="slider"><label>Mode</label>
+          <select id="bgModeSel">
+            <option value="gradient">Linear Gradient</option>
+            <option value="radial">Radial Gradient</option>
+            <option value="solid">Solid Color</option>
+            <option value="mesh">Mesh Gradient</option>
+            <option value="noise">Noise / Grainy</option>
+            <option value="blur">Blurred Content</option>
+            <option value="transparent">Transparent</option>
+          </select>
+        </div>
+        <div class="row2">
+          <div class="slider"><label>Color A</label><input type="color" id="bgColorA" value="#1a1a2e"></div>
+          <div class="slider"><label>Color B</label><input type="color" id="bgColorB" value="#16213e"></div>
+        </div>
+        <div class="slider"><label>Angle</label><input type="range" id="bgAngleR" min="0" max="360" step="1" value="135"><span class="val" id="bgAngleV">135</span></div>
+        <div class="slider"><label>Grain</label><input type="range" id="bgGrainR" min="0" max="1" step="0.01" value="0.06"><span class="val" id="bgGrainV">0.06</span></div>
+
+        <div class="section">Device</div>
+        <div class="slider"><label>Scale</label><input type="range" id="scaleR" min="0.2" max="1.3" step="0.01" value="0.7"><span class="val" id="scaleV">0.70</span></div>
+        <div class="slider"><label>Rotate</label><input type="range" id="rotR" min="-30" max="30" step="0.5" value="0"><span class="val" id="rotV">0.0</span></div>
+        <div class="slider"><label>Pos X</label><input type="range" id="posXR" min="-0.5" max="0.5" step="0.005" value="0"><span class="val" id="posXV">0.00</span></div>
+        <div class="slider"><label>Pos Y</label><input type="range" id="posYR" min="-0.5" max="0.5" step="0.005" value="0"><span class="val" id="posYV">0.00</span></div>
+        <div class="chipRow" style="margin-top:8px;">
+          <button class="chip" id="flipHBtn">↔ Flip H</button>
+          <button class="chip" id="flipVBtn">↕ Flip V</button>
+          <button class="chip" id="centerBtn">● Center</button>
+        </div>
+
+        <div class="section">Screen</div>
+        <div class="slider"><label>Radius</label><input type="range" id="scrRadR" min="0.02" max="0.2" step="0.005" value="0.1"><span class="val" id="scrRadV">0.100</span></div>
+        <div class="slider"><label>Fit</label>
+          <select id="fitSel">
+            <option value="cover" selected>Cover (crop)</option>
+            <option value="contain">Contain (fit)</option>
+            <option value="stretch">Stretch</option>
+          </select>
+        </div>
+        <div class="slider"><label>Zoom</label><input type="range" id="zoomR" min="0.5" max="2" step="0.01" value="1"><span class="val" id="zoomV">1.00</span></div>
+
+        <div class="section">Shadow</div>
+        <div id="shadowBlock"></div>
+      </div>
+
+      <!-- EFFECTS TAB -->
+      <div class="tabBody" data-body="effects" style="display:none;">
+        <div class="section">Motion</div>
+        <div id="motionBlock"></div>
+        <div class="section" style="margin-top:20px;">Post-Processing
+          <button id="clearFxBtn">Clear all</button>
+        </div>
+        <div id="fxList"></div>
+      </div>
+
+      <!-- EXPORT TAB -->
+      <div class="tabBody" data-body="export" style="display:none;">
+        <div class="section">Video Recording</div>
+        <div class="exportGrid">
+          <label>Format<select id="fmtSel">
+            <option value="webm">WebM</option>
+            <option value="mp4">MP4</option>
+            <option value="gif" disabled>GIF (coming soon)</option>
+          </select></label>
+          <label>FPS<select id="fpsSel"><option>30</option><option selected>60</option></select></label>
+          <label>Quality<select id="qualitySel">
+            <option value="4000000">Low (4 Mbps)</option>
+            <option value="8000000">Medium (8 Mbps)</option>
+            <option value="16000000" selected>High (16 Mbps)</option>
+            <option value="24000000">Ultra (24 Mbps)</option>
+          </select></label>
+          <label>Size<select id="sizeSel">
+            <option value="0.5">720p</option>
+            <option value="1" selected>1080p</option>
+            <option value="1.5">1440p</option>
+            <option value="2">4K (2160p)</option>
+          </select></label>
+        </div>
+        <div class="slider"><label>Duration</label><input type="range" id="durR" min="0" max="60" step="1" value="0"><span class="val" id="durV">∞</span></div>
+        <div class="slider"><label>Loop</label><input type="checkbox" id="loopChk" style="flex:none;"></div>
+
+        <div class="section">Snapshot (PNG)</div>
+        <div class="exportGrid">
+          <label>Resolution<select id="snapResSel">
+            <option value="1">1x</option>
+            <option value="2" selected>2x</option>
+            <option value="3">3x</option>
+            <option value="4">4x (print)</option>
+          </select></label>
+          <label>Transparent<select id="snapBgSel">
+            <option value="no">No (with bg)</option>
+            <option value="yes">Yes (transparent bg)</option>
+          </select></label>
+        </div>
+
+        <div class="section">Share</div>
+        <div class="chipRow">
+          <button class="chip" id="copyFrameBtn">Copy Frame to Clipboard</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctaRow">
+      <button id="snapBtn">📷 Snapshot</button>
+      <button id="recBtn">● Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- shortcuts -->
+<div id="shModal"><div class="box">
+  <h3>Keyboard Shortcuts</h3>
+  <table>
+    <tr><td>Record</td><td><span class="kbd">R</span></td></tr>
+    <tr><td>Snapshot PNG</td><td><span class="kbd">S</span></td></tr>
+    <tr><td>Copy frame</td><td><span class="kbd">⌘</span> <span class="kbd">C</span></td></tr>
+    <tr><td>Paste image</td><td><span class="kbd">⌘</span> <span class="kbd">V</span></td></tr>
+    <tr><td>Open media</td><td><span class="kbd">O</span></td></tr>
+    <tr><td>Live capture</td><td><span class="kbd">L</span></td></tr>
+    <tr><td>Reset scene</td><td><span class="kbd">⌘</span> <span class="kbd">0</span></td></tr>
+    <tr><td>Toggle panel</td><td><span class="kbd">P</span></td></tr>
+    <tr><td>Help</td><td><span class="kbd">?</span></td></tr>
+  </table>
+  <div style="text-align:right;margin-top:14px;">
+    <button onclick="document.getElementById('shModal').classList.remove('show')" style="background:var(--accent);border:none;color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;">Got it</button>
+  </div>
+</div></div>
+
+<script>
+/* =========================================================================
+   Dropshot Free — single-file device mockup + FX + recorder
+   ========================================================================= */
+
+const canvas = document.getElementById('canvas');
+const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true, antialias: true, premultipliedAlpha: false });
+if (!gl) { alert('WebGL2 required.'); throw new Error('no webgl2'); }
+
+/* -------- Devices -------- */
+const DEVICES = [
+  { id:'ip17pro_ti', name:'iPhone 17 Pro', sub:'Natural Titanium', aspect: 9/19.5, radius:0.105, bezel:0.014, notch:'island', rim:[0.72,0.70,0.66] },
+  { id:'ip17pro_bk', name:'iPhone 17 Pro', sub:'Black Titanium',   aspect: 9/19.5, radius:0.105, bezel:0.014, notch:'island', rim:[0.16,0.16,0.18] },
+  { id:'ip17pro_wh', name:'iPhone 17 Pro', sub:'White Titanium',   aspect: 9/19.5, radius:0.105, bezel:0.014, notch:'island', rim:[0.88,0.87,0.85] },
+  { id:'ip17pro_dt', name:'iPhone 17 Pro', sub:'Desert Titanium',  aspect: 9/19.5, radius:0.105, bezel:0.014, notch:'island', rim:[0.78,0.68,0.54] },
+  { id:'ip17promax', name:'iPhone 17 Pro Max', sub:'Natural',      aspect: 9/19.5, radius:0.102, bezel:0.013, notch:'island', rim:[0.72,0.70,0.66] },
+  { id:'ip17',       name:'iPhone 17',    sub:'Aluminum Blue',     aspect: 9/19.5, radius:0.11,  bezel:0.018, notch:'island', rim:[0.35,0.45,0.65] },
+  { id:'ipad',       name:'iPad Pro 13',  sub:'Silver',            aspect: 1.334,  radius:0.045, bezel:0.02,  notch:'bar',    rim:[0.78,0.78,0.80] },
+  { id:'macbook',    name:'MacBook Pro',  sub:'Space Black',       aspect: 1.554,  radius:0.025, bezel:0.012, notch:'mnotch', rim:[0.12,0.12,0.14] },
+  { id:'pixel',      name:'Pixel 9 Pro',  sub:'Obsidian',          aspect: 9/20,   radius:0.085, bezel:0.016, notch:'hole',   rim:[0.14,0.14,0.16] },
+  { id:'none',       name:'No Frame',     sub:'Content only',      aspect: 9/19.5, radius:0.04,  bezel:0.0,   notch:'none',   rim:[0,0,0] },
+];
+
+/* -------- Background presets -------- */
+const BG_PRESETS = [
+  { name:'Midnight', a:'#0f0c29', b:'#302b63', ang:135 },
+  { name:'Sunset', a:'#ff6a00', b:'#ee0979', ang:135 },
+  { name:'Ocean', a:'#1a2980', b:'#26d0ce', ang:135 },
+  { name:'Mint', a:'#76b852', b:'#8dc26f', ang:135 },
+  { name:'Rose', a:'#ff9a9e', b:'#fad0c4', ang:135 },
+  { name:'Cyberpunk', a:'#ff00ff', b:'#00ffff', ang:135 },
+  { name:'Studio', a:'#2c3e50', b:'#4ca1af', ang:135 },
+  { name:'Mono Dark', a:'#232526', b:'#414345', ang:135 },
+  { name:'Mono Light', a:'#ece9e6', b:'#ffffff', ang:135 },
+  { name:'Peach', a:'#ffecd2', b:'#fcb69f', ang:135 },
+  { name:'Berry', a:'#8e2de2', b:'#4a00e0', ang:135 },
+  { name:'Fire', a:'#ff416c', b:'#ff4b2b', ang:135 },
+  { name:'Forest', a:'#134e5e', b:'#71b280', ang:135 },
+  { name:'Steel', a:'#434343', b:'#000000', ang:135 },
+  { name:'Aurora', a:'#00c3ff', b:'#ffff1c', ang:135 },
+];
+
+/* -------- Scene presets -------- */
+const SCENE_PRESETS = [
+  { name:'Product Hunt', bg:{ mode:'gradient', a:'#da552f', b:'#ff6b35', ang:135 }, scale:0.72, rot:0, effects:['hover','shadow','glass'] },
+  { name:'Social Story', bg:{ mode:'gradient', a:'#8e2de2', b:'#4a00e0', ang:45 }, scale:0.65, rot:-8, effects:['hover','shadow','specular'] },
+  { name:'Studio Clean', bg:{ mode:'radial', a:'#2c2c2e', b:'#0a0a0b', ang:0 }, scale:0.75, rot:0, effects:['shadow','dynlight'] },
+  { name:'Instagram Post', bg:{ mode:'gradient', a:'#ff9a9e', b:'#fad0c4', ang:135 }, scale:0.65, rot:0, effects:['hover','shadow','glass'] },
+  { name:'Dramatic', bg:{ mode:'radial', a:'#000', b:'#1a0033', ang:0 }, scale:0.72, rot:-4, effects:['shadow','vignette','dynlight','chrom'] },
+  { name:'Retro Wave', bg:{ mode:'gradient', a:'#ff00ff', b:'#00ffff', ang:180 }, scale:0.7, rot:0, effects:['hover','shadow','scanlines','chrom'] },
+  { name:'Film Grain', bg:{ mode:'gradient', a:'#434343', b:'#000', ang:135 }, scale:0.72, rot:0, effects:['shadow','grain','vignette'] },
+  { name:'Minimal', bg:{ mode:'solid', a:'#f5f5f7', b:'#f5f5f7', ang:0 }, scale:0.75, rot:0, effects:['shadow'] },
+];
+
+/* -------- FX definitions -------- */
+const FX_DEFS = [
+  { id:'shadow', name:'Ground Shadow', on:true, group:'shadow', params:[
+    { k:'style',  label:'Style', enum:['Soft','Hard','Glow','Neon','Reflection','None'], val:0 },
+    { k:'opacity',label:'Opacity', min:0, max:1, val:0.65 },
+    { k:'size',   label:'Size',    min:0.3, max:2.5, val:1.1 },
+    { k:'blur',   label:'Blur',    min:0, max:1, val:0.25 },
+    { k:'offsetY',label:'Offset Y',min:-1, max:1, val:-0.35 },
+    { k:'offsetX',label:'Offset X',min:-1, max:1, val:0 },
+    { k:'hue',    label:'Color Hue',min:0, max:360, val:230 },
+  ]},
+];
+const MOTION_DEF = { id:'hover', name:'Hover Motion', on:true, params:[
+  { k:'type', label:'Type', enum:['Float','Sway','Tilt','Orbit','Pulse','Spin','Wobble','Drift','Bounce','Heartbeat'], val:0 },
+  { k:'speed',label:'Speed', min:0, max:4, val:1.2 },
+  { k:'range',label:'Range', min:0, max:2, val:1.0 },
+]};
+const POST_FX = [
+  { id:'specular', name:'Specular Glide', on:false, params:[
+    { k:'intensity',label:'Intensity', min:0, max:2, val:0.8 },
+    { k:'speed',   label:'Speed', min:0, max:4, val:1.0 },
+    { k:'width',   label:'Width', min:0.02, max:0.5, val:0.12 },
+  ]},
+  { id:'dynlight', name:'Dynamic Lighting', on:false, params:[
+    { k:'strength',label:'Strength', min:0, max:2, val:0.9 },
+    { k:'speed',   label:'Speed', min:0, max:2, val:0.5 },
+  ]},
+  { id:'glass', name:'Glass Glare', on:false, params:[
+    { k:'opacity',label:'Opacity', min:0, max:1, val:0.3 },
+    { k:'angle',  label:'Angle',  min:0, max:360, val:30 },
+  ]},
+  { id:'chrom', name:'Chromatic Shift', on:false, params:[
+    { k:'amount',label:'Amount', min:0, max:0.02, val:0.004 },
+  ]},
+  { id:'noir', name:'Noir / B&W', on:false, params:[
+    { k:'amount',label:'Amount', min:0, max:1, val:1 },
+    { k:'contrast',label:'Contrast', min:0, max:2, val:1.1 },
+  ]},
+  { id:'heat', name:'Heat Ripple', on:false, params:[
+    { k:'amount',label:'Amount', min:0, max:0.05, val:0.01 },
+    { k:'speed', label:'Speed', min:0, max:4, val:1.5 },
+  ]},
+  { id:'glitch', name:'Glitch', on:false, params:[
+    { k:'amount',label:'Amount', min:0, max:0.15, val:0.03 },
+    { k:'rate',  label:'Rate',   min:0.5, max:20, val:8 },
+  ]},
+  { id:'vignette', name:'Vignette', on:false, params:[
+    { k:'amount',label:'Amount', min:0, max:1, val:0.6 },
+    { k:'softness',label:'Softness', min:0.1, max:1, val:0.5 },
+  ]},
+  { id:'grain', name:'Film Grain', on:false, params:[
+    { k:'amount',label:'Amount', min:0, max:0.3, val:0.08 },
+    { k:'speed', label:'Speed',  min:0, max:10, val:6 },
+  ]},
+  { id:'bloom', name:'Bloom', on:false, params:[
+    { k:'amount', label:'Amount', min:0, max:2, val:0.8 },
+    { k:'threshold',label:'Threshold', min:0, max:1, val:0.7 },
+  ]},
+  { id:'scanlines', name:'Scanlines', on:false, params:[
+    { k:'amount', label:'Amount', min:0, max:1, val:0.4 },
+    { k:'density',label:'Density',min:100, max:1200, val:600 },
+  ]},
+  { id:'sepia', name:'Sepia', on:false, params:[
+    { k:'amount', label:'Amount', min:0, max:1, val:0.7 },
+  ]},
+  { id:'saturate', name:'Saturate', on:false, params:[
+    { k:'amount', label:'Amount', min:0, max:3, val:1.4 },
+  ]},
+  { id:'blur', name:'Gaussian Blur', on:false, params:[
+    { k:'amount', label:'Amount', min:0, max:0.01, val:0.002 },
+  ]},
+  { id:'pixel', name:'Pixelate', on:false, params:[
+    { k:'size', label:'Size', min:0.001, max:0.05, val:0.01 },
+  ]},
+  { id:'crt', name:'CRT Curvature', on:false, params:[
+    { k:'amount', label:'Amount', min:0, max:0.5, val:0.2 },
+  ]},
+  { id:'invert', name:'Invert', on:false, params:[
+    { k:'amount', label:'Amount', min:0, max:1, val:1 },
+  ]},
+];
+
+/* -------- State -------- */
+const state = {
+  device: 'ip17pro_ti',
+  aspect: '9:16',
+  padding: 0.08,
+  scale: 0.70,
+  rot: 0,
+  posX: 0,
+  posY: 0,
+  flipH: false,
+  flipV: false,
+  scrRad: 0.10,
+  fit: 'cover',
+  zoom: 1,
+  bg: { mode:'gradient', colorA:'#1a1a2e', colorB:'#16213e', angle:135, grain:0.06 },
+  shadow: FX_DEFS[0],
+  motion: { ...MOTION_DEF, params: MOTION_DEF.params.map(p => ({ ...p })) },
+  fx: POST_FX.map(d => ({ ...d, params: d.params.map(p => ({ ...p })) })),
+  img: null,
+  imgIsVideo: false,
+  recording: false,
+  recDuration: 0,
+};
+
+/* -------- Helper: hex → [r,g,b] 0..1 -------- */
+function hexToRgb(hex){
+  const h = hex.replace('#','');
+  const v = h.length === 3 ? h.split('').map(c => c+c).join('') : h;
+  const n = parseInt(v, 16);
+  return [((n>>16)&255)/255, ((n>>8)&255)/255, (n&255)/255];
+}
+
+/* ==========================================================================
+   UI BUILDERS
+   ========================================================================== */
+const deviceList = document.getElementById('deviceList');
+DEVICES.forEach(d => {
+  const el = document.createElement('div');
+  el.className = 'preset' + (d.id === state.device ? ' active' : '');
+  el.dataset.id = d.id;
+  const rim = `rgb(${d.rim.map(c => Math.round(c*255)).join(',')})`;
+  el.innerHTML = `
+    <div class="swatch" style="background:${rim}; border:1px solid rgba(255,255,255,.15);"></div>
+    <div style="flex:1;min-width:0;">
+      <div class="pName" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.name}</div>
+      <div class="pDesc" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.sub}</div>
+    </div>`;
+  el.addEventListener('click', () => {
+    state.device = d.id;
+    document.querySelectorAll('#deviceList .preset').forEach(x => x.classList.toggle('active', x.dataset.id === d.id));
+  });
+  deviceList.appendChild(el);
+});
+
+const bgPresets = document.getElementById('bgPresets');
+BG_PRESETS.forEach(p => {
+  const el = document.createElement('div');
+  el.className = 'preset';
+  el.innerHTML = `
+    <div class="swatch" style="background:linear-gradient(${p.ang}deg, ${p.a}, ${p.b});"></div>
+    <div style="flex:1;min-width:0;">
+      <div class="pName">${p.name}</div>
+      <div class="pDesc">${p.a} → ${p.b}</div>
+    </div>`;
+  el.addEventListener('click', () => {
+    state.bg.mode = 'gradient';
+    state.bg.colorA = p.a;
+    state.bg.colorB = p.b;
+    state.bg.angle = p.ang;
+    document.getElementById('bgModeSel').value = 'gradient';
+    document.getElementById('bgColorA').value = p.a;
+    document.getElementById('bgColorB').value = p.b;
+    document.getElementById('bgAngleR').value = p.ang;
+    document.getElementById('bgAngleV').textContent = p.ang;
+    toast(`BG: ${p.name}`);
+  });
+  bgPresets.appendChild(el);
+});
+
+const scenePresets = document.getElementById('scenePresets');
+SCENE_PRESETS.forEach(p => {
+  const el = document.createElement('div');
+  el.className = 'preset';
+  el.innerHTML = `
+    <div class="swatch" style="background:linear-gradient(${p.bg.ang}deg, ${p.bg.a}, ${p.bg.b});"></div>
+    <div style="flex:1;min-width:0;">
+      <div class="pName">${p.name}</div>
+      <div class="pDesc">${p.effects.length} effects</div>
+    </div>`;
+  el.addEventListener('click', () => applyScenePreset(p));
+  scenePresets.appendChild(el);
+});
+
+function applyScenePreset(p) {
+  state.bg.mode = p.bg.mode;
+  state.bg.colorA = p.bg.a;
+  state.bg.colorB = p.bg.b;
+  state.bg.angle = p.bg.ang;
+  state.scale = p.scale;
+  state.rot = p.rot;
+  state.fx.forEach(f => f.on = p.effects.includes(f.id));
+  state.shadow.on = p.effects.includes('shadow');
+  syncUI();
+  rebuildFxList();
+  toast(`Preset: ${p.name}`);
+}
+
+/* -------- Tabs -------- */
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
+    document.querySelectorAll('.tabBody').forEach(b => b.style.display = b.dataset.body === t.dataset.tab ? '' : 'none');
+  });
+});
+
+/* -------- Binds -------- */
+function bindRange(id, path, fmt = v => v.toFixed(2)) {
+  const el = document.getElementById(id);
+  const valEl = document.getElementById(id.replace(/R$/, 'V'));
+  el.addEventListener('input', () => {
+    setByPath(state, path, parseFloat(el.value));
+    if (valEl) valEl.textContent = fmt(parseFloat(el.value));
+  });
+}
+function setByPath(obj, path, val) {
+  const parts = path.split('.');
+  let o = obj;
+  for (let i=0; i<parts.length-1; i++) o = o[parts[i]];
+  o[parts[parts.length-1]] = val;
+}
+function bindSelect(id, path) {
+  const el = document.getElementById(id);
+  el.addEventListener('change', () => setByPath(state, path, el.value));
+}
+function bindColor(id, path) {
+  const el = document.getElementById(id);
+  el.addEventListener('input', () => setByPath(state, path, el.value));
+}
+function bindCheckbox(id, path) {
+  const el = document.getElementById(id);
+  el.addEventListener('change', () => setByPath(state, path, el.checked));
+}
+
+bindRange('paddingR', 'padding');
+bindRange('scaleR', 'scale');
+bindRange('rotR', 'rot', v => v.toFixed(1));
+bindRange('posXR', 'posX');
+bindRange('posYR', 'posY');
+bindRange('scrRadR', 'scrRad', v => v.toFixed(3));
+bindRange('zoomR', 'zoom');
+bindRange('bgAngleR', 'bg.angle', v => Math.round(v));
+bindRange('bgGrainR', 'bg.grain');
+bindSelect('aspectSel', 'aspect');
+bindSelect('bgModeSel', 'bg.mode');
+bindSelect('fitSel', 'fit');
+bindColor('bgColorA', 'bg.colorA');
+bindColor('bgColorB', 'bg.colorB');
+
+document.getElementById('flipHBtn').addEventListener('click', () => {
+  state.flipH = !state.flipH;
+  document.getElementById('flipHBtn').classList.toggle('active', state.flipH);
+});
+document.getElementById('flipVBtn').addEventListener('click', () => {
+  state.flipV = !state.flipV;
+  document.getElementById('flipVBtn').classList.toggle('active', state.flipV);
+});
+document.getElementById('centerBtn').addEventListener('click', () => {
+  state.posX = 0; state.posY = 0; state.rot = 0;
+  document.getElementById('posXR').value = 0; document.getElementById('posXV').textContent = '0.00';
+  document.getElementById('posYR').value = 0; document.getElementById('posYV').textContent = '0.00';
+  document.getElementById('rotR').value = 0;  document.getElementById('rotV').textContent = '0.0';
+});
+
+function syncUI() {
+  document.getElementById('scaleR').value = state.scale;
+  document.getElementById('scaleV').textContent = state.scale.toFixed(2);
+  document.getElementById('rotR').value = state.rot;
+  document.getElementById('rotV').textContent = state.rot.toFixed(1);
+  document.getElementById('bgModeSel').value = state.bg.mode;
+  document.getElementById('bgColorA').value = state.bg.colorA;
+  document.getElementById('bgColorB').value = state.bg.colorB;
+  document.getElementById('bgAngleR').value = state.bg.angle;
+  document.getElementById('bgAngleV').textContent = Math.round(state.bg.angle);
+}
+
+/* -------- Shadow block -------- */
+function buildShadowBlock() {
+  const blk = document.getElementById('shadowBlock');
+  blk.innerHTML = '';
+  const sh = state.shadow;
+  const wrap = document.createElement('div');
+  wrap.className = 'fx' + (sh.on ? ' on' : '');
+  wrap.innerHTML = `
+    <div class="fxHead"><span class="dot"></span><span class="name">${sh.name}</span><span class="chev">›</span></div>
+    <div class="fxBody">
+      ${sh.params.map((p, i) => paramHTML(p, 'shadow', i)).join('')}
+    </div>`;
+  wrap.querySelector('.fxHead').addEventListener('click', () => {
+    sh.on = !sh.on;
+    wrap.classList.toggle('on', sh.on);
+  });
+  wireParams(wrap, sh);
+  blk.appendChild(wrap);
+}
+
+function paramHTML(p, scope, idx) {
+  if (p.enum) {
+    return `<div class="slider"><label>${p.label}</label>
+      <select data-scope="${scope}" data-idx="${idx}">
+        ${p.enum.map((n, i) => `<option value="${i}" ${i===p.val?'selected':''}>${n}</option>`).join('')}
+      </select></div>`;
+  }
+  const step = p.step || (p.max - p.min) / 200;
+  return `<div class="slider"><label>${p.label}</label>
+    <input type="range" data-scope="${scope}" data-idx="${idx}" min="${p.min}" max="${p.max}" step="${step}" value="${p.val}">
+    <span class="val">${p.val.toFixed(2)}</span></div>`;
+}
+function wireParams(root, holder) {
+  root.querySelectorAll('input[type=range]').forEach(r => {
+    r.addEventListener('input', () => {
+      const p = holder.params[+r.dataset.idx];
+      p.val = parseFloat(r.value);
+      r.nextElementSibling.textContent = p.val.toFixed(2);
+    });
+  });
+  root.querySelectorAll('select').forEach(s => {
+    s.addEventListener('change', () => {
+      const p = holder.params[+s.dataset.idx];
+      p.val = parseInt(s.value, 10);
+    });
+  });
+}
+
+/* -------- Motion block -------- */
+function buildMotionBlock() {
+  const blk = document.getElementById('motionBlock');
+  blk.innerHTML = '';
+  const m = state.motion;
+  const wrap = document.createElement('div');
+  wrap.className = 'fx' + (m.on ? ' on' : '');
+  wrap.innerHTML = `
+    <div class="fxHead"><span class="dot"></span><span class="name">${m.name}</span><span class="chev">›</span></div>
+    <div class="fxBody">${m.params.map((p, i) => paramHTML(p, 'motion', i)).join('')}</div>`;
+  wrap.querySelector('.fxHead').addEventListener('click', () => { m.on = !m.on; wrap.classList.toggle('on', m.on); });
+  wireParams(wrap, m);
+  blk.appendChild(wrap);
+}
+
+/* -------- FX list -------- */
+function buildFxList() {
+  const fxList = document.getElementById('fxList');
+  fxList.innerHTML = '';
+  state.fx.forEach((fx, fxIdx) => {
+    const el = document.createElement('div');
+    el.className = 'fx' + (fx.on ? ' on' : '');
+    el.innerHTML = `
+      <div class="fxHead"><span class="dot"></span><span class="name">${fx.name}</span><span class="chev">›</span></div>
+      <div class="fxBody">${fx.params.map((p, i) => paramHTML(p, `fx${fxIdx}`, i)).join('')}</div>`;
+    el.querySelector('.fxHead').addEventListener('click', () => { fx.on = !fx.on; el.classList.toggle('on', fx.on); });
+    wireParams(el, fx);
+    fxList.appendChild(el);
+  });
+}
+function rebuildFxList() {
+  buildShadowBlock();
+  buildMotionBlock();
+  buildFxList();
+}
+rebuildFxList();
+
+document.getElementById('clearFxBtn').addEventListener('click', () => {
+  state.fx.forEach(f => f.on = false);
+  rebuildFxList();
+});
+
+/* -------- Toolbar actions -------- */
+document.getElementById('loadImgBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadFile(f); });
+document.getElementById('liveBtn').addEventListener('click', startLive);
+document.getElementById('pasteBtn').addEventListener('click', async () => {
+  try {
+    const items = await navigator.clipboard.read();
+    for (const it of items) {
+      for (const type of it.types) {
+        if (type.startsWith('image/')) { const blob = await it.getType(type); loadFile(blob); return; }
+      }
+    }
+    toast('No image in clipboard');
+  } catch(e) { toast('Clipboard blocked — use ⌘V'); }
+});
+document.getElementById('resetBtn').addEventListener('click', () => {
+  stopLive(); stopUploadedVideo();
+  state.img = null; state.imgIsVideo = false;
+  toast('Reset');
+});
+document.getElementById('helpBtn').addEventListener('click', () => document.getElementById('shModal').classList.add('show'));
+
+/* -------- Drop + paste -------- */
+const stage = document.getElementById('stage');
+const dropEl = document.getElementById('overlayDrop');
+['dragenter','dragover'].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); dropEl.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); dropEl.classList.remove('drag'); }));
+stage.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+window.addEventListener('paste', e => {
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
+  if (item) loadFile(item.getAsFile());
+});
+
+/* -------- Media loading -------- */
+let uploadedVideo = null;
+function loadFile(file) {
+  stopLive(); stopUploadedVideo();
+  const url = URL.createObjectURL(file);
+  if ((file.type || '').startsWith('video/')) {
+    const v = document.createElement('video');
+    v.src = url; v.loop = true; v.muted = true; v.playsInline = true; v.autoplay = true;
+    v.onloadeddata = () => { v.play().catch(()=>{}); state.img = v; state.imgIsVideo = true; };
+    uploadedVideo = v;
+    toast('Video loaded');
+  } else {
+    const img = new Image();
+    img.onload = () => { state.img = img; state.imgIsVideo = false; toast('Image loaded'); };
+    img.src = url;
+  }
+}
+function stopUploadedVideo() {
+  if (uploadedVideo) { try { uploadedVideo.pause(); } catch(e){} uploadedVideo = null; }
+}
+
+let liveStream = null, liveVideo = null;
+async function startLive() {
+  try {
+    stopLive(); stopUploadedVideo();
+    liveStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 60 }, audio: false });
+    liveVideo = document.createElement('video');
+    liveVideo.srcObject = liveStream; liveVideo.muted = true;
+    await liveVideo.play();
+    state.img = liveVideo; state.imgIsVideo = true;
+    liveStream.getVideoTracks()[0].onended = () => stopLive();
+    toast('Live capture started');
+  } catch(e) { toast('Live cancelled'); }
+}
+function stopLive() {
+  if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null; }
+  if (liveVideo) { try { liveVideo.pause(); } catch(e){} liveVideo = null; }
+  if (state.imgIsVideo && !uploadedVideo) { state.img = null; state.imgIsVideo = false; }
+}
+
+/* =========================================================================
+   WebGL2 pipeline
+   ========================================================================= */
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error(gl.getShaderInfoLog(s)); console.log(src); }
+  return s;
+}
+function makeProg(vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p));
+  return p;
+}
+
+const VS_RECT = `#version 300 es
+in vec2 a_pos; in vec2 a_uv; out vec2 v_uv;
+uniform vec4 u_rect;   // center + half-size (xy=center, zw=half-size)
+uniform float u_rot;
+uniform vec2 u_flip;   // x, y: 1 or -1
+void main(){
+  v_uv = vec2((a_uv.x - 0.5) * u_flip.x + 0.5, (a_uv.y - 0.5) * u_flip.y + 0.5);
+  vec2 p = a_pos * u_rect.zw;
+  float c = cos(u_rot), s = sin(u_rot);
+  p = mat2(c, -s, s, c) * p;
+  p += u_rect.xy;
+  gl_Position = vec4(p, 0., 1.);
+}`;
+const VS_FULL = `#version 300 es
+in vec2 a_pos; in vec2 a_uv; out vec2 v_uv;
+void main(){ v_uv = a_uv; gl_Position = vec4(a_pos, 0., 1.); }`;
+
+/* Background shader — multiple modes */
+const FS_BG = `#version 300 es
+precision highp float; in vec2 v_uv; out vec4 o;
+uniform int u_mode; // 0 gradient, 1 radial, 2 solid, 3 mesh, 4 noise, 5 blur, 6 transparent
+uniform vec3 u_cA; uniform vec3 u_cB;
+uniform float u_angle;
+uniform float u_grain;
+uniform float u_time;
+uniform sampler2D u_tex; // for blur mode
+uniform vec2 u_canvasSize;
+
+float hash21(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+float noise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  float a = hash21(i);
+  float b = hash21(i + vec2(1.0, 0.0));
+  float c = hash21(i + vec2(0.0, 1.0));
+  float d = hash21(i + vec2(1.0, 1.0));
+  vec2 u = f*f*(3.0-2.0*f);
+  return mix(a, b, u.x) + (c - a)*u.y*(1.0 - u.x) + (d - b)*u.x*u.y;
+}
+
+void main(){
+  vec3 col;
+  if (u_mode == 0) { // linear gradient
+    float a = radians(u_angle);
+    vec2 dir = vec2(cos(a), sin(a));
+    float t = dot(v_uv - 0.5, dir) + 0.5;
+    col = mix(u_cA, u_cB, clamp(t, 0.0, 1.0));
+  } else if (u_mode == 1) { // radial
+    float d = distance(v_uv, vec2(0.5));
+    col = mix(u_cA, u_cB, smoothstep(0.0, 0.9, d));
+  } else if (u_mode == 2) { // solid
+    col = u_cA;
+  } else if (u_mode == 3) { // mesh
+    float n1 = noise(v_uv * 3.0 + u_time * 0.05);
+    float n2 = noise(v_uv * 2.0 - u_time * 0.03);
+    col = mix(u_cA, u_cB, n1);
+    col = mix(col, vec3(dot(col, vec3(0.33)))*1.2, n2 * 0.3);
+  } else if (u_mode == 4) { // noise / grainy
+    float n = noise(v_uv * 80.0);
+    col = mix(u_cA, u_cB, n);
+  } else if (u_mode == 5) { // blurred content approximation
+    vec3 sum = vec3(0.0); float w = 0.0;
+    for (int i=-4; i<=4; i++) for (int j=-4; j<=4; j++) {
+      vec2 off = vec2(float(i), float(j)) * 0.01;
+      sum += texture(u_tex, v_uv + off).rgb; w += 1.0;
+    }
+    col = sum / w * 0.7;
+  } else {
+    discard;
+  }
+  // grain
+  float g = (hash21(v_uv * u_canvasSize + u_time) - 0.5) * u_grain;
+  col += g;
+  o = vec4(col, 1.0);
+}`;
+
+/* Shadow shader — multiple styles */
+const FS_SHADOW = `#version 300 es
+precision highp float; in vec2 v_uv; out vec4 o;
+uniform int u_style;  // 0 soft, 1 hard, 2 glow, 3 neon, 4 reflection
+uniform float u_blur; uniform float u_opacity;
+uniform vec3 u_hue;
+void main(){
+  vec2 p = v_uv - 0.5;
+  if (u_style == 0) { // soft
+    float d = length(p * vec2(1.0, 2.4));
+    float a = smoothstep(0.5, 0.5 - u_blur*0.5 - 0.02, d);
+    o = vec4(0.0, 0.0, 0.0, a * u_opacity);
+  } else if (u_style == 1) { // hard
+    float d = length(p * vec2(1.0, 2.4));
+    float a = d < 0.45 ? 1.0 : 0.0;
+    o = vec4(0.0, 0.0, 0.0, a * u_opacity);
+  } else if (u_style == 2) { // glow
+    float d = length(p);
+    float a = smoothstep(0.6, 0.0, d);
+    o = vec4(u_hue, a * u_opacity);
+  } else if (u_style == 3) { // neon
+    float d = length(p);
+    float ring = smoothstep(0.05, 0.0, abs(d - 0.4));
+    float glow = smoothstep(0.6, 0.1, d) * 0.4;
+    o = vec4(u_hue, (ring + glow) * u_opacity);
+  } else { // reflection
+    float vert = smoothstep(0.0, 0.6, v_uv.y);
+    float a = (1.0 - vert) * u_opacity;
+    o = vec4(u_hue * 0.5, a);
+  }
+}`;
+
+/* Content shader — applies per-device FX (specular, dynlight, glass) + rounded mask */
+const FS_CONTENT = `#version 300 es
+precision highp float;
+in vec2 v_uv; out vec4 o;
+uniform sampler2D u_tex;
+uniform vec2 u_size;
+uniform float u_radius;
+uniform float u_time;
+uniform vec2 u_contentScale;
+uniform vec2 u_contentOffset;
+uniform float u_zoom;
+uniform int u_fit;  // 0 cover, 1 contain, 2 stretch
+
+uniform int u_specOn; uniform float u_specInt; uniform float u_specSpd; uniform float u_specWid;
+uniform int u_glassOn; uniform float u_glassOp; uniform float u_glassAng;
+uniform int u_dynOn; uniform float u_dynStr; uniform float u_dynSpd;
+
+float roundMask(vec2 uv, vec2 sz, float r){
+  vec2 p = (uv - 0.5) * sz;
+  vec2 q = abs(p) - (sz*0.5 - r);
+  float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+  return 1.0 - smoothstep(-1.0, 1.0, d);
+}
+
+void main(){
+  vec2 uv;
+  if (u_fit == 2) { // stretch
+    uv = v_uv / u_zoom + (0.5 - 0.5/u_zoom);
+  } else {
+    vec2 cs = u_contentScale;
+    if (u_fit == 1) cs = 1.0 / cs; // invert for contain
+    uv = (v_uv - 0.5) * cs / u_zoom + 0.5 + u_contentOffset;
+  }
+  vec4 c = texture(u_tex, uv);
+
+  if (u_dynOn == 1) {
+    float t = u_time * u_dynSpd;
+    vec2 lp = vec2(0.5 + 0.35*sin(t*0.6), 0.3 + 0.25*cos(t*0.4));
+    float d = distance(v_uv, lp);
+    float l = smoothstep(0.85, 0.0, d) * u_dynStr;
+    c.rgb += l * 0.28;
+  }
+  if (u_specOn == 1) {
+    float t = mod(u_time * 0.25 * u_specSpd, 2.5) - 0.5;
+    float band = smoothstep(u_specWid, 0.0, abs(v_uv.x + v_uv.y - t*1.5));
+    c.rgb += band * u_specInt * 0.65;
+  }
+  if (u_glassOn == 1) {
+    float a = radians(u_glassAng);
+    vec2 d = vec2(cos(a), sin(a));
+    float s = dot(v_uv - 0.5, d);
+    float band = smoothstep(0.2, 0.0, abs(s - 0.15)) + smoothstep(0.12, 0.0, abs(s + 0.18))*0.5;
+    c.rgb += band * u_glassOp;
+  }
+
+  float m = roundMask(v_uv, u_size, u_radius);
+  o = vec4(c.rgb, c.a * m);
+}`;
+
+/* Bezel shader — titanium rim w/ sheen */
+const FS_BEZEL = `#version 300 es
+precision highp float; in vec2 v_uv; out vec4 o;
+uniform vec2 u_size; uniform float u_radius;
+uniform vec3 u_rim;
+float sdRound(vec2 uv, vec2 sz, float r){
+  vec2 p = (uv - 0.5) * sz;
+  vec2 q = abs(p) - (sz*0.5 - r);
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+void main(){
+  float d = sdRound(v_uv, u_size, u_radius);
+  float m = 1.0 - smoothstep(-1.0, 1.0, d);
+  float edge = smoothstep(-2.5, -0.5, d);
+  float sheen = smoothstep(0.0, 1.0, v_uv.y);
+  vec3 base = u_rim * (0.7 + 0.4 * sheen);
+  float sideL = smoothstep(0.015, 0.0, v_uv.x);
+  float sideR = smoothstep(0.015, 0.0, 1.0 - v_uv.x);
+  base += vec3(sideL + sideR) * 0.12;
+  vec3 inner = vec3(0.008);
+  vec3 col = mix(inner, base, edge);
+  o = vec4(col, m);
+}`;
+
+/* Notch/island shader */
+const FS_NOTCH = `#version 300 es
+precision highp float; in vec2 v_uv; out vec4 o;
+uniform vec2 u_size; uniform float u_radius;
+float sdRound(vec2 uv, vec2 sz, float r){
+  vec2 p = (uv - 0.5) * sz;
+  vec2 q = abs(p) - (sz*0.5 - r);
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+void main(){
+  float d = sdRound(v_uv, u_size, u_radius);
+  float m = 1.0 - smoothstep(-1.0, 1.0, d);
+  o = vec4(vec3(0.012), m);
+}`;
+
+/* Post shader — all screen-space FX stacked */
+const FS_POST = `#version 300 es
+precision highp float; in vec2 v_uv; out vec4 o;
+uniform sampler2D u_tex;
+uniform float u_time;
+uniform vec2 u_size;
+uniform int u_chromOn; uniform float u_chromAmt;
+uniform int u_noirOn;  uniform float u_noirAmt; uniform float u_noirCon;
+uniform int u_heatOn;  uniform float u_heatAmt; uniform float u_heatSpd;
+uniform int u_glitchOn;uniform float u_glitchAmt; uniform float u_glitchRate;
+uniform int u_vigOn;   uniform float u_vigAmt;   uniform float u_vigSoft;
+uniform int u_grainOn; uniform float u_grainAmt; uniform float u_grainSpd;
+uniform int u_bloomOn; uniform float u_bloomAmt; uniform float u_bloomThr;
+uniform int u_scanOn;  uniform float u_scanAmt;  uniform float u_scanDen;
+uniform int u_sepiaOn; uniform float u_sepiaAmt;
+uniform int u_satOn;   uniform float u_satAmt;
+uniform int u_blurOn;  uniform float u_blurAmt;
+uniform int u_pixOn;   uniform float u_pixSize;
+uniform int u_crtOn;   uniform float u_crtAmt;
+uniform int u_invOn;   uniform float u_invAmt;
+
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+
+void main(){
+  vec2 uv = v_uv;
+
+  // CRT curvature
+  if (u_crtOn == 1) {
+    vec2 cc = uv - 0.5;
+    float r2 = dot(cc, cc);
+    uv = 0.5 + cc * (1.0 + r2 * u_crtAmt);
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { o = vec4(0.,0.,0.,1.); return; }
+  }
+
+  // Pixelate
+  if (u_pixOn == 1) uv = floor(uv / u_pixSize) * u_pixSize + u_pixSize*0.5;
+
+  // Heat ripple
+  if (u_heatOn == 1) {
+    float t = u_time * u_heatSpd;
+    uv.x += sin(uv.y * 40.0 + t) * u_heatAmt;
+    uv.y += cos(uv.x * 30.0 + t*1.2) * u_heatAmt;
+  }
+  // Glitch — horizontal slice shift
+  if (u_glitchOn == 1) {
+    float row = floor(uv.y * 80.0);
+    float r = hash(vec2(row, floor(u_time * u_glitchRate)));
+    if (r > 0.85) uv.x += (r - 0.5) * u_glitchAmt * 4.0;
+  }
+
+  vec4 c;
+  // Chromatic shift
+  if (u_chromOn == 1) {
+    float a = u_chromAmt;
+    c.r = texture(u_tex, uv + vec2(a, 0.0)).r;
+    c.g = texture(u_tex, uv).g;
+    c.b = texture(u_tex, uv - vec2(a, 0.0)).b;
+    c.a = texture(u_tex, uv).a;
+  } else c = texture(u_tex, uv);
+
+  // Blur (simple box)
+  if (u_blurOn == 1) {
+    vec4 acc = vec4(0.0); float w = 0.0;
+    for (int i=-2; i<=2; i++) for (int j=-2; j<=2; j++) {
+      acc += texture(u_tex, uv + vec2(float(i), float(j)) * u_blurAmt);
+      w += 1.0;
+    }
+    c = acc / w;
+  }
+
+  // Bloom (cheap)
+  if (u_bloomOn == 1) {
+    vec4 bl = vec4(0.0); float tw = 0.0;
+    for (int i=-3; i<=3; i++) for (int j=-3; j<=3; j++) {
+      vec4 s = texture(u_tex, uv + vec2(float(i), float(j)) * 0.003);
+      float lum = dot(s.rgb, vec3(0.299, 0.587, 0.114));
+      if (lum > u_bloomThr) bl += s * (lum - u_bloomThr);
+      tw += 1.0;
+    }
+    c.rgb += bl.rgb / tw * u_bloomAmt * 2.0;
+  }
+
+  // Noir
+  if (u_noirOn == 1) {
+    float g = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+    g = (g - 0.5) * u_noirCon + 0.5;
+    c.rgb = mix(c.rgb, vec3(g) * vec3(1.05, 1.0, 0.95), u_noirAmt);
+  }
+  // Sepia
+  if (u_sepiaOn == 1) {
+    vec3 se = vec3(
+      dot(c.rgb, vec3(0.393, 0.769, 0.189)),
+      dot(c.rgb, vec3(0.349, 0.686, 0.168)),
+      dot(c.rgb, vec3(0.272, 0.534, 0.131))
+    );
+    c.rgb = mix(c.rgb, se, u_sepiaAmt);
+  }
+  // Saturate
+  if (u_satOn == 1) {
+    float g = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+    c.rgb = mix(vec3(g), c.rgb, u_satAmt);
+  }
+  // Invert
+  if (u_invOn == 1) c.rgb = mix(c.rgb, 1.0 - c.rgb, u_invAmt);
+  // Grain
+  if (u_grainOn == 1) {
+    float n = (hash(uv * u_size + u_time * u_grainSpd) - 0.5) * 2.0 * u_grainAmt;
+    c.rgb += n;
+  }
+  // Scanlines
+  if (u_scanOn == 1) {
+    float sc = sin(uv.y * u_scanDen) * 0.5 + 0.5;
+    c.rgb *= mix(1.0, sc, u_scanAmt);
+  }
+  // Vignette
+  if (u_vigOn == 1) {
+    float d = distance(uv, vec2(0.5));
+    float v = smoothstep(0.5 * u_vigSoft, 0.5 * u_vigSoft + 0.4, d);
+    c.rgb *= mix(1.0, 1.0 - u_vigAmt, v);
+  }
+
+  o = vec4(c.rgb, c.a);
+}`;
+
+/* Progs */
+const progBg     = makeProg(VS_FULL, FS_BG);
+const progShadow = makeProg(VS_RECT, FS_SHADOW);
+const progContent= makeProg(VS_RECT, FS_CONTENT);
+const progBezel  = makeProg(VS_RECT, FS_BEZEL);
+const progNotch  = makeProg(VS_RECT, FS_NOTCH);
+const progPost   = makeProg(VS_FULL, FS_POST);
+
+/* Quad */
+const quad = new Float32Array([
+  -1,-1, 0,0,   1,-1, 1,0,   -1, 1, 0,1,
+   1,-1, 1,0,   1, 1, 1,1,   -1, 1, 0,1,
+]);
+const qbuf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, qbuf); gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+function setAttribs(p) {
+  const pl = gl.getAttribLocation(p, 'a_pos'), ul = gl.getAttribLocation(p, 'a_uv');
+  gl.bindBuffer(gl.ARRAY_BUFFER, qbuf);
+  gl.enableVertexAttribArray(pl); gl.vertexAttribPointer(pl, 2, gl.FLOAT, false, 16, 0);
+  gl.enableVertexAttribArray(ul); gl.vertexAttribPointer(ul, 2, gl.FLOAT, false, 16, 8);
+}
+
+/* FBO */
+function makeFBO(w, h) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  return { fb, tex, w, h };
+}
+let sceneFBO = makeFBO(canvas.width, canvas.height);
+
+/* Content texture */
+const contentTex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, contentTex);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([40,40,48,255, 60,60,72,255, 60,60,72,255, 40,40,48,255]));
+
+function uploadContent() {
+  if (!state.img) return false;
+  gl.bindTexture(gl.TEXTURE_2D, contentTex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  try {
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, state.img);
+    return true;
+  } catch(e) { return false; }
+}
+
+/* =========================================================================
+   Render loop
+   ========================================================================= */
+function getDevice(){ return DEVICES.find(d => d.id === state.device) || DEVICES[0]; }
+function shadowParam(k){ return state.shadow.params.find(p => p.k === k).val; }
+function motionParam(k){ return state.motion.params.find(p => p.k === k).val; }
+function fxOn(id){ const f = state.fx.find(x => x.id === id); return f && f.on; }
+function fxP(id, k){ const f = state.fx.find(x => x.id === id); return f.params.find(p => p.k === k).val; }
+
+const startTime = performance.now();
+
+function computeMotion(t) {
+  const m = state.motion;
+  if (!m.on) return { bx:0, by:0, rz:0, sm:1 };
+  const spd = motionParam('speed'), rng = motionParam('range');
+  const type = Math.round(motionParam('type'));
+  const ph = t * spd;
+  let bx=0, by=0, rz=0, sm=1;
+  switch(type) {
+    case 0: by = Math.sin(ph)*0.04*rng; bx = Math.cos(ph*0.7)*0.016*rng; break; // Float
+    case 1: bx = Math.sin(ph)*0.05*rng; rz = Math.sin(ph)*0.08*rng; break;       // Sway
+    case 2: rz = Math.sin(ph)*0.18*rng; by = Math.cos(ph*2)*0.005*rng; break;    // Tilt
+    case 3: bx = Math.cos(ph)*0.05*rng; by = Math.sin(ph)*0.05*rng; rz = Math.sin(ph)*0.04*rng; break; // Orbit
+    case 4: sm = 1 + Math.sin(ph)*0.06*rng; break; // Pulse
+    case 5: rz = ph * 0.3 * rng; break; // Spin
+    case 6: rz = Math.sin(ph*1.3)*0.12*rng; by = Math.cos(ph*1.6)*0.025*rng; bx = Math.sin(ph*0.9)*0.025*rng; sm = 1 + Math.sin(ph*2)*0.02*rng; break; // Wobble
+    case 7: bx = Math.sin(ph*0.3)*0.12*rng; by = Math.sin(ph*0.5)*0.03*rng; break; // Drift
+    case 8: by = Math.abs(Math.sin(ph))*0.08*rng - 0.04*rng; break; // Bounce
+    case 9: { // Heartbeat
+      const k = Math.pow(Math.sin(ph) * 0.5 + 0.5, 8);
+      sm = 1 + k * 0.1 * rng;
+      break;
+    }
+  }
+  return { bx, by, rz, sm };
+}
+
+function aspectToRatio(a) {
+  const [w, h] = a.split(':').map(Number);
+  return w / h;
+}
+
+function fitCanvas() {
+  const ratio = aspectToRatio(state.aspect);
+  const rect = stage.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  let w = rect.width * 0.9, h = rect.height * 0.9;
+  if (w / h > ratio) w = h * ratio; else h = w / ratio;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+}
+
+function render() {
+  if (Math.abs(canvas.width / canvas.height - aspectToRatio(state.aspect)) > 0.01) fitCanvas();
+  const t = (performance.now() - startTime) / 1000;
+  const W = canvas.width, H = canvas.height;
+  if (sceneFBO.w !== W || sceneFBO.h !== H) sceneFBO = makeFBO(W, H);
+
+  /* ---- STEP 1: render scene to sceneFBO ---- */
+  gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFBO.fb);
+  gl.viewport(0, 0, W, H);
+  gl.clearColor(0, 0, 0, state.bg.mode === 'transparent' ? 0 : 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  /* Background */
+  if (state.bg.mode !== 'transparent') {
+    gl.useProgram(progBg);
+    setAttribs(progBg);
+    const modeMap = { gradient:0, radial:1, solid:2, mesh:3, noise:4, blur:5 };
+    gl.uniform1i(gl.getUniformLocation(progBg, 'u_mode'), modeMap[state.bg.mode] ?? 0);
+    const ca = hexToRgb(state.bg.colorA), cb = hexToRgb(state.bg.colorB);
+    gl.uniform3f(gl.getUniformLocation(progBg, 'u_cA'), ca[0], ca[1], ca[2]);
+    gl.uniform3f(gl.getUniformLocation(progBg, 'u_cB'), cb[0], cb[1], cb[2]);
+    gl.uniform1f(gl.getUniformLocation(progBg, 'u_angle'), state.bg.angle);
+    gl.uniform1f(gl.getUniformLocation(progBg, 'u_grain'), state.bg.grain);
+    gl.uniform1f(gl.getUniformLocation(progBg, 'u_time'), t);
+    gl.uniform2f(gl.getUniformLocation(progBg, 'u_canvasSize'), W, H);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, contentTex);
+    gl.uniform1i(gl.getUniformLocation(progBg, 'u_tex'), 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
+  const dev = getDevice();
+  const m = computeMotion(t);
+
+  // Padding factor (shrinks the content area from edges)
+  const padFactor = 1 - state.padding * 2;
+  const userScale = state.scale * m.sm * padFactor;
+
+  // Phone size in clip space
+  const phAspect = dev.aspect;
+  const canvasAspect = W / H;
+  let phoneH = userScale;
+  let phoneW = userScale * phAspect * (H / W);
+  // If landscape device (macbook, ipad landscape) flip dims
+  if (dev.aspect > 1) {
+    phoneW = userScale * (H / W);
+    phoneH = userScale / dev.aspect;
+  }
+
+  const cx = state.posX * 2;
+  const cy = state.posY * 2;
+  const rotZ = m.rz + state.rot * Math.PI / 180;
+
+  /* Shadow (behind) */
+  if (state.shadow.on) {
+    const style = Math.round(shadowParam('style'));
+    if (style < 5) {
+      gl.useProgram(progShadow);
+      setAttribs(progShadow);
+      gl.uniform1i(gl.getUniformLocation(progShadow, 'u_style'), style);
+      gl.uniform1f(gl.getUniformLocation(progShadow, 'u_opacity'), shadowParam('opacity'));
+      gl.uniform1f(gl.getUniformLocation(progShadow, 'u_blur'), shadowParam('blur'));
+      const hue = shadowParam('hue');
+      const [hr, hg, hb] = hslToRgb(hue / 360, 0.7, 0.5);
+      gl.uniform3f(gl.getUniformLocation(progShadow, 'u_hue'), hr, hg, hb);
+      const sSz = shadowParam('size');
+      const sOx = shadowParam('offsetX');
+      const sOy = shadowParam('offsetY');
+      let shW = phoneW * 1.6 * sSz, shH = phoneH * 0.35 * sSz;
+      let shX = cx + sOx * 0.3;
+      let shY = cy - phoneH + sOy * 0.3 + m.by * 0.2;
+      if (style === 4) { // reflection
+        shW = phoneW; shH = phoneH;
+        shY = cy - phoneH * 1.02 + sOy * 0.3;
+      }
+      gl.uniform4f(gl.getUniformLocation(progShadow, 'u_rect'), shX, shY, shW, shH);
+      gl.uniform1f(gl.getUniformLocation(progShadow, 'u_rot'), 0);
+      gl.uniform2f(gl.getUniformLocation(progShadow, 'u_flip'), 1, style === 4 ? -1 : 1);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+  }
+
+  /* Bezel (before content) */
+  if (dev.id !== 'none' && dev.bezel > 0) {
+    const bezelPad = dev.bezel;
+    const bw = phoneW + bezelPad * (H/W);
+    const bh = phoneH + bezelPad;
+    gl.useProgram(progBezel);
+    setAttribs(progBezel);
+    const szPx = [bw * W, bh * H];
+    gl.uniform2f(gl.getUniformLocation(progBezel, 'u_size'), szPx[0], szPx[1]);
+    gl.uniform1f(gl.getUniformLocation(progBezel, 'u_radius'), Math.min(szPx[0], szPx[1]) * (dev.radius + 0.005));
+    gl.uniform3f(gl.getUniformLocation(progBezel, 'u_rim'), dev.rim[0], dev.rim[1], dev.rim[2]);
+    gl.uniform4f(gl.getUniformLocation(progBezel, 'u_rect'), cx + m.bx, cy + m.by, bw, bh);
+    gl.uniform1f(gl.getUniformLocation(progBezel, 'u_rot'), rotZ);
+    gl.uniform2f(gl.getUniformLocation(progBezel, 'u_flip'), 1, 1);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
+  /* Content */
+  if (state.img) uploadContent();
+  gl.useProgram(progContent);
+  setAttribs(progContent);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, contentTex);
+  gl.uniform1i(gl.getUniformLocation(progContent, 'u_tex'), 0);
+
+  // Fit content
+  let cs = [1, 1];
+  if (state.img) {
+    const iw = state.img.naturalWidth || state.img.videoWidth || 0;
+    const ih = state.img.naturalHeight || state.img.videoHeight || 0;
+    if (iw && ih) {
+      const phAspectPx = (phoneW * W) / (phoneH * H);
+      const imAspect = iw / ih;
+      if (imAspect > phAspectPx) cs = [phAspectPx / imAspect, 1];
+      else cs = [1, imAspect / phAspectPx];
+    }
+  }
+  gl.uniform2f(gl.getUniformLocation(progContent, 'u_contentScale'), cs[0], cs[1]);
+  gl.uniform2f(gl.getUniformLocation(progContent, 'u_contentOffset'), 0, 0);
+  gl.uniform1f(gl.getUniformLocation(progContent, 'u_zoom'), state.zoom);
+  gl.uniform1i(gl.getUniformLocation(progContent, 'u_fit'),
+    state.fit === 'cover' ? 0 : state.fit === 'contain' ? 1 : 2);
+
+  const szPx = [phoneW * W, phoneH * H];
+  gl.uniform2f(gl.getUniformLocation(progContent, 'u_size'), szPx[0], szPx[1]);
+  gl.uniform1f(gl.getUniformLocation(progContent, 'u_radius'), Math.min(szPx[0], szPx[1]) * state.scrRad);
+  gl.uniform1f(gl.getUniformLocation(progContent, 'u_time'), t);
+
+  gl.uniform1i(gl.getUniformLocation(progContent, 'u_specOn'), fxOn('specular')?1:0);
+  if (fxOn('specular')) {
+    gl.uniform1f(gl.getUniformLocation(progContent, 'u_specInt'), fxP('specular','intensity'));
+    gl.uniform1f(gl.getUniformLocation(progContent, 'u_specSpd'), fxP('specular','speed'));
+    gl.uniform1f(gl.getUniformLocation(progContent, 'u_specWid'), fxP('specular','width'));
+  }
+  gl.uniform1i(gl.getUniformLocation(progContent, 'u_glassOn'), fxOn('glass')?1:0);
+  if (fxOn('glass')) {
+    gl.uniform1f(gl.getUniformLocation(progContent, 'u_glassOp'), fxP('glass','opacity'));
+    gl.uniform1f(gl.getUniformLocation(progContent, 'u_glassAng'), fxP('glass','angle'));
+  }
+  gl.uniform1i(gl.getUniformLocation(progContent, 'u_dynOn'), fxOn('dynlight')?1:0);
+  if (fxOn('dynlight')) {
+    gl.uniform1f(gl.getUniformLocation(progContent, 'u_dynStr'), fxP('dynlight','strength'));
+    gl.uniform1f(gl.getUniformLocation(progContent, 'u_dynSpd'), fxP('dynlight','speed'));
+  }
+
+  gl.uniform4f(gl.getUniformLocation(progContent, 'u_rect'), cx + m.bx, cy + m.by, phoneW, phoneH);
+  gl.uniform1f(gl.getUniformLocation(progContent, 'u_rot'), rotZ);
+  gl.uniform2f(gl.getUniformLocation(progContent, 'u_flip'), state.flipH ? -1 : 1, state.flipV ? -1 : 1);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  /* Notch/island */
+  if (dev.id !== 'none' && dev.notch !== 'none') {
+    gl.useProgram(progNotch);
+    setAttribs(progNotch);
+    let nW, nH, localY;
+    if (dev.notch === 'island') {
+      nW = phoneW * 0.30; nH = phoneH * 0.036;
+      localY = phoneH - nH * 1.8;
+    } else if (dev.notch === 'hole') {
+      nW = phoneW * 0.06; nH = phoneH * 0.03;
+      localY = phoneH - nH * 1.5;
+    } else if (dev.notch === 'mnotch') {
+      nW = phoneW * 0.22; nH = phoneH * 0.035;
+      localY = phoneH - nH * 0.5;
+    } else {
+      nW = phoneW * 0.05; nH = phoneH * 0.02;
+      localY = phoneH - nH * 2;
+    }
+    const c = Math.cos(rotZ), s = Math.sin(rotZ);
+    const nx = cx + m.bx + (-s * localY);
+    const ny = cy + m.by + ( c * localY);
+    const nSzPx = [nW * W, nH * H];
+    gl.uniform2f(gl.getUniformLocation(progNotch, 'u_size'), nSzPx[0], nSzPx[1]);
+    gl.uniform1f(gl.getUniformLocation(progNotch, 'u_radius'), Math.min(nSzPx[0], nSzPx[1]) * 0.5);
+    gl.uniform4f(gl.getUniformLocation(progNotch, 'u_rect'), nx, ny, nW, nH);
+    gl.uniform1f(gl.getUniformLocation(progNotch, 'u_rot'), rotZ);
+    gl.uniform2f(gl.getUniformLocation(progNotch, 'u_flip'), 1, 1);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
+  /* ---- STEP 2: post to screen ---- */
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, W, H);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.useProgram(progPost);
+  setAttribs(progPost);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, sceneFBO.tex);
+  gl.uniform1i(gl.getUniformLocation(progPost, 'u_tex'), 0);
+  gl.uniform1f(gl.getUniformLocation(progPost, 'u_time'), t);
+  gl.uniform2f(gl.getUniformLocation(progPost, 'u_size'), W, H);
+
+  const setFx = (id, uPrefix, params) => {
+    gl.uniform1i(gl.getUniformLocation(progPost, uPrefix + 'On'), fxOn(id)?1:0);
+    if (fxOn(id)) {
+      for (const [k, u] of params) gl.uniform1f(gl.getUniformLocation(progPost, u), fxP(id, k));
+    }
+  };
+  setFx('chrom', 'u_chrom', [['amount','u_chromAmt']]);
+  setFx('noir',  'u_noir',  [['amount','u_noirAmt'],['contrast','u_noirCon']]);
+  setFx('heat',  'u_heat',  [['amount','u_heatAmt'],['speed','u_heatSpd']]);
+  setFx('glitch','u_glitch',[['amount','u_glitchAmt'],['rate','u_glitchRate']]);
+  setFx('vignette','u_vig', [['amount','u_vigAmt'],['softness','u_vigSoft']]);
+  setFx('grain', 'u_grain', [['amount','u_grainAmt'],['speed','u_grainSpd']]);
+  setFx('bloom', 'u_bloom', [['amount','u_bloomAmt'],['threshold','u_bloomThr']]);
+  setFx('scanlines','u_scan',[['amount','u_scanAmt'],['density','u_scanDen']]);
+  setFx('sepia', 'u_sepia', [['amount','u_sepiaAmt']]);
+  setFx('saturate','u_sat', [['amount','u_satAmt']]);
+  setFx('blur',  'u_blur',  [['amount','u_blurAmt']]);
+  setFx('pixel', 'u_pix',   [['size','u_pixSize']]);
+  setFx('crt',   'u_crt',   [['amount','u_crtAmt']]);
+  setFx('invert','u_inv',   [['amount','u_invAmt']]);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  requestAnimationFrame(render);
+}
+
+function hslToRgb(h, s, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h * 6) % 2 - 1));
+  const m = l - c / 2;
+  let r, g, b;
+  if (h < 1/6) [r,g,b] = [c,x,0];
+  else if (h < 2/6) [r,g,b] = [x,c,0];
+  else if (h < 3/6) [r,g,b] = [0,c,x];
+  else if (h < 4/6) [r,g,b] = [0,x,c];
+  else if (h < 5/6) [r,g,b] = [x,0,c];
+  else [r,g,b] = [c,0,x];
+  return [r+m, g+m, b+m];
+}
+
+window.addEventListener('resize', fitCanvas);
+fitCanvas();
+requestAnimationFrame(render);
+
+/* =========================================================================
+   Recording + Snapshot
+   ========================================================================= */
+const recBtn = document.getElementById('recBtn');
+const recDot = document.getElementById('recDot');
+const recTime = document.getElementById('recTime');
+const snapBtn = document.getElementById('snapBtn');
+let recorder = null, chunks = [], recStart = 0, recInterval = null;
+
+recBtn.addEventListener('click', () => state.recording ? stopRec() : startRec());
+snapBtn.addEventListener('click', snapshot);
+
+function startRec() {
+  const fps = +document.getElementById('fpsSel').value;
+  const fmt = document.getElementById('fmtSel').value;
+  const quality = +document.getElementById('qualitySel').value;
+  const stream = canvas.captureStream(fps);
+  const candidates = fmt === 'mp4'
+    ? ['video/mp4;codecs=avc1', 'video/webm;codecs=vp9', 'video/webm']
+    : ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  const mime = candidates.find(m => MediaRecorder.isTypeSupported(m));
+  if (!mime) { toast('No recorder mime supported'); return; }
+  chunks = [];
+  recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: quality });
+  recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: mime });
+    const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `dropshot-${Date.now()}.${ext}`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast(`Saved ${ext.toUpperCase()}`);
+  };
+  recorder.start(100);
+  state.recording = true; recStart = performance.now();
+  recBtn.innerHTML = '■ Stop';
+  recBtn.classList.add('recording');
+  recDot.classList.add('live');
+  recTime.classList.add('show');
+  const limitSec = +document.getElementById('durR').value;
+  recInterval = setInterval(() => {
+    const s = (performance.now() - recStart) / 1000;
+    recTime.textContent = `● ${s.toFixed(1)}s`;
+    if (limitSec > 0 && s >= limitSec) stopRec();
+  }, 100);
+  toast('Recording');
+}
+function stopRec() {
+  if (recorder && recorder.state !== 'inactive') recorder.stop();
+  state.recording = false;
+  recBtn.innerHTML = '● Record';
+  recBtn.classList.remove('recording');
+  recDot.classList.remove('live');
+  recTime.classList.remove('show');
+  clearInterval(recInterval);
+}
+
+function snapshot() {
+  const mult = +document.getElementById('snapResSel').value;
+  const transparent = document.getElementById('snapBgSel').value === 'yes';
+  const origW = canvas.width, origH = canvas.height;
+  const origBgMode = state.bg.mode;
+  if (transparent) state.bg.mode = 'transparent';
+  if (mult !== 1) {
+    canvas.width = origW * mult;
+    canvas.height = origH * mult;
+    sceneFBO = makeFBO(canvas.width, canvas.height);
+  }
+  // Force a sync render
+  render.__once = true;
+  requestAnimationFrame(() => {
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `dropshot-${Date.now()}.png`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast('Snapshot saved');
+      state.bg.mode = origBgMode;
+      if (mult !== 1) { canvas.width = origW; canvas.height = origH; sceneFBO = makeFBO(origW, origH); }
+    }, 'image/png');
+  });
+}
+
+document.getElementById('copyFrameBtn').addEventListener('click', async () => {
+  try {
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    toast('Copied to clipboard');
+  } catch(e) { toast('Copy failed'); }
+});
+
+document.getElementById('durR').addEventListener('input', () => {
+  const v = +document.getElementById('durR').value;
+  document.getElementById('durV').textContent = v === 0 ? '∞' : `${v}s`;
+});
+
+/* -------- Toasts -------- */
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1400);
+}
+
+/* -------- Keyboard shortcuts -------- */
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'r' || e.key === 'R') { e.preventDefault(); state.recording ? stopRec() : startRec(); }
+  else if (e.key === 's' || e.key === 'S') { e.preventDefault(); snapshot(); }
+  else if (e.key === 'o' || e.key === 'O') { document.getElementById('fileInput').click(); }
+  else if (e.key === 'l' || e.key === 'L') { startLive(); }
+  else if (e.key === '?' || (e.shiftKey && e.key === '/')) { document.getElementById('shModal').classList.toggle('show'); }
+  else if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+    e.preventDefault(); document.getElementById('copyFrameBtn').click();
+  }
+  else if ((e.metaKey || e.ctrlKey) && e.key === '0') {
+    document.getElementById('resetBtn').click();
+  }
+  else if (e.key === 'p' || e.key === 'P') {
+    document.getElementById('panel').style.display = document.getElementById('panel').style.display === 'none' ? '' : 'none';
+  }
+  else if (e.key === 'Escape') { document.getElementById('shModal').classList.remove('show'); }
+});
+
+toast('Dropshot Free — ready');
+</script>
+</body>
+</html>
